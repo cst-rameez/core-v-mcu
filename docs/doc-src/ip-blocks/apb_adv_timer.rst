@@ -20,7 +20,7 @@
 APB Advanced Timer
 ==================
 
-The Advanced Timer supports four programmable timers called "channels", typically used for PWM generation.
+The Advanced Timer supports four programmable timers called "channels", typically used for PWM generation. These four timers can be configured independently to support four unique PWM generation parallely.   
 
 Features
 --------
@@ -31,111 +31,87 @@ Features
   - 32 GPIOs
   - Reference clock at 32kHz
   - FLL clock
-
-- Configurable input trigger modes
+  
+- Configurable input trigger modes for each timer
 - Configurable prescaler for each timer
 - Configurable counting mode for each timer
 - Configurable channel threshold action for each timer
 - Four configurable output events
 - Configurable clock gating of each timer
 
-Block Diagram
+Architecture
 -------------
- |image1|  
+
+The figure below is a high-level block diagram of the APB Advanced Timer module:-
+
+.. figure:: apb_adv_timer_image1.png
+   :name: APB_ADVANCED_TIMER_Block_Diagram
+   :align: center
+   :alt:
+
+   APB ADVANCED TIMER Block Diagram
+
+The APB ADVANCED TIMER IP consists of the following key components:
+APB control logic, APB ADVANCED TIMER Registers and 4 Timer modules
+
+APB control logic
+~~~~~~~~~~~~~~~~~
+The APB control logic interfaces with the APB bus to decode and execute commands.
+It handles register reads and writes according to the APB protocol, providing a standardized interface to the system.
+
+APB ADVANCED TIMER Registers
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+There are few common registers that are store the configurations
+  - Event select  
+  - Clock enable
+There are 4 timer modules and each timer module has its own set of registers
+Each of the timer module specific registers store the following configuration:
+  - Arm, Reset, Update, Stop and Start  
+  - Prescalar value, Updownsel, Clksel, Input trigger mode select, Input pins select
+  - Threshold high and Threshold low
+  - Counter 
+  - Output trigger mode 
 
 Timer Module
-^^^^^^^^^^^^
- |image2| 
+~~~~~~~~~~~~
+.. figure:: apb_adv_timer_image2.png
+   :name: TIMER_Block_Diagram
+   :align: center
+   :alt:
 
-Each submodule receives inputs from the timer controller, interface, and other modules.
+   TIMER Block Diagram
+
+Timer module has various submodules/components like Timer Controller, Input stage, Prescalar, Updown counter and Comparators. 
 
 Theory of Operation
 ^^^^^^^^^^^^^^^^^^^
+  - FW drives various configuration register and external input signals
+  - Input stage selects and processes the appropriate input signal. These signal are passed to prescalar.
+  - Prescaler scales up the input signals and process it further. The resultant information is passed to the updowncounter.
+  - Updowncounter process it and the generates the output event. Then it sends some information to 4 comparators 
+  - Comparators process them and generate the final output events.   
 
-Input Ports
-+++++++++++
-
-1. **HCLK**: External clock for synchronization
-2. **HRESETn**: Reset pin to reset the timer
-3. **APB bus pins**
-4. **dft_cg_enable_i**
-5. **low_speed_clk_i**
-6. **ext_sig_i**: A set of 32 GPIOs
-
-Output Ports
-++++++++++++
-
-1. **events_o[3:0]**
-2. **ch0_o[3:0]**
-3. **ch1_o[3:0]**
-4. **ch2_o[3:0]**
-5. **ch3_o[3:0]**
-
-High-Level Specification
-------------------------
-
-APB Advanced Timer
-^^^^^^^^^^^^^^^^^^
-
-- When the HRESETn signal is low, registers default to 0 and outputs are low.
-- Four timer modules have four clock gates which will be enabled(meaning passes the ref clock to respective timer module) 
-  only when either dft_cg_enable_i is high or the bit in respective position of REG_CH_EN register is high(0th bit for timer_0,1st bit for timer_1,etc).
-- At every positive edge of the clock the CSR registers are updated based on APB signals.
-- When the command register START is high and the timer is not
-  active yet (which means the timer is started for the first time)
-  then all the config values of all modules are
-  commanded to be updated to default .They are,
-
-    ○ The start value of the up down counter(TH_LO)
-
-    ○ The end value of the up down counter(TH_HI)
-
-    ○ The direction of the up down counter(default is 0) 
-
-    ○ The sawtooth mode of the up down counter(UPDOWNSEL) 
-
-    ○ The counter value of the up down counter (TH_LO)  
-
-    ○ The prescaler value(PRESC),The MODE and INSEL register values. 
-
-    ○ For each channel the MODE and TH values
-
-    ○ Here,The general update of all the config happens in sync with
-    the positive edge of the clock but the config of the up down
-    counter (TH_LO,TH_HI,direct and
-    UPDOWNSEL are updated immediately). 
-
-- After the start of the model,The update to the submodules will
-  happen based on register value UPDATE,RESET,and count update signal
-  from the up down counter.
-- At every clock positive edge,based on the command register START
-  or STOP,the state of the timer is set as active or not .Once the
-  timer is active then all the updates of the
-  submodules depend on the corresponding registers.
-
-    ○ The RESET command register
-
-    ○ The UPDATE command register
-
+Input Stage
+^^^^^^^^^^^
 - Based on the change in the config register CLKSEL ,it is decided
   whether the input selected from the set of inputs in ext_sig_i will
-  be in sync with the rising edge of the
-  low_speed_clk_i in sync with the ref clock.
+  be either in sync with the rising edge of the
+  low_speed_clk_i or in sync with the ref clock.
 
-- At every positive edge of the clock,the input signal is
-  selected from a set of signals in ext_sig_i using the config
-  register INSEL value and how the events are generated from the
-  signal is decided by the config register MODE.
+- At every positive edge of the clock,the input signal is selected from a set of signals in ext_sig_i using the config register INSEL value and how the events are generated from the signal is decided by the config register MODE.
 
     ○ If MODE is 3’b000
 
     ■ The event is always high
+
     ○ If MODE is 3’b001
 
     ■ The event is sensitive to the negation of the signal selected
+
     ○ If MODE is 3’b010
 
     ■ The output event is sensitive to the input signal selected
+    
     ○ If MODE is 3’b011
 
     ■ The output event is sensitive to the rising edge of the selected
@@ -166,8 +142,9 @@ APB Advanced Timer
     remains the same until the next falling edge of the signal.If ARM
     register is low,then the output event is low forever.
 
-- The Event signal generated from the selected input based on the MODE config register
-  in the previous step is scaled based on the
+Prescalar
+^^^^^^^^^
+- The Event signal is scaled based on the
   prescaler value(PRESC register value). At every positive edge of the
   clock the register PRESC is
   updated.The scaling happens in a way that after every time the
@@ -179,8 +156,9 @@ APB Advanced Timer
   according to the PRESC
   register value).
 
-- The above output scaled events generated go to the up down
-  counter.For every event the counter is incremented starting from
+Updown counter
+^^^^^^^^^^^^^^
+- For every event the counter is incremented starting from
   the start value(TH_LO register) .Based on the register UPDOWNCLK
   representing the sawtooth mode,it is decided whether the counter
   should reset after reaching end of the counting range (TH_HI) or it
@@ -195,11 +173,11 @@ APB Advanced Timer
   representing the counter is updated at every clock positive edge.
 
 - Here, the counter value,event representing the end of the
-  timer,the **output event** generated above ,and the
-  UPDOWNSEL register value are used by the comparator below.
+  timer,the **output event**  are generated.
 
-**Comparator:-**
 
+Comparator
+^^^^^^^^^^
 - At every positive edge of the clock,When the timer is started the
   first time or explicitly updated through the update
   command register named UPDATE, the module is updated then, the
@@ -284,8 +262,8 @@ APB Advanced Timer
   until further change in input) and event_2 is kept low.
 
 
-**CSR Register for the Timer Module 0:**
-
+APB ADVANCED CSRs
+-----------------
 **REG_TIM0_CMD** offset=0x000
 
 .. list-table::
@@ -760,10 +738,21 @@ APB Advanced Timer
      - R
      - ADV_TIMER0 counter register
 
+Input Ports
++++++++++++
 
-.. |image1| image:: apb_adv_timer_image1.png
-   :width: 6.5in
-   :height: 2.83333in
-.. |image2| image:: apb_adv_timer_image2.png
-   :width: 7.5in
-   :height: 7.32361in
+1. **HCLK**: External clock for synchronization
+2. **HRESETn**: Reset pin to reset the timer
+3. **APB bus pins**
+4. **dft_cg_enable_i**
+5. **low_speed_clk_i**
+6. **ext_sig_i**: A set of 32 GPIOs
+
+Output Ports
+++++++++++++
+
+1. **events_o[3:0]**
+2. **ch0_o[3:0]**
+3. **ch1_o[3:0]**
+4. **ch2_o[3:0]**
+5. **ch3_o[3:0]**
