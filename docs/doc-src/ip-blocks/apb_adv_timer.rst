@@ -26,7 +26,6 @@ Features
 --------
 
 - Multiple trigger input sources:
-
   - Output signal channels of all timers
   - 32 GPIOs
   - Reference clock at 32kHz
@@ -61,11 +60,11 @@ It handles register reads and writes according to the APB protocol, providing a 
 
 APB ADVANCED TIMER Registers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-There are few common registers that are store the configurations
-  - Event select  
+There are few common registers that store the following configurations
+  - Output event select  
   - Clock enable
-There are 4 timer modules and each timer module has its own set of registers
-Each of the timer module specific registers store the following configuration:
+
+There are 4 timer modules and each timer module has its own set of registers. Each of the timer module specific registers store the following configuration:
   - Arm, Reset, Update, Stop and Start  
   - Prescalar value, Updownsel, Clksel, Input trigger mode select, Input pins select
   - Threshold high and Threshold low
@@ -81,80 +80,64 @@ Timer Module
 
    TIMER Block Diagram
 
-Timer module has various submodules/components like Timer Controller, Input stage, Prescalar, Updown counter and Comparators. 
+Timer module has various submodules/components like Timer Controller, Input stage, Prescalar, Updown counter and Comparators.
+FW drives various configuration register and when the external input/stimulus is provided, Input stage selects and processes the appropriate inputs.
+Timer controller manages all the other submodules through few control signals like active, controller reset and update.
+Prescalar further process the signals from input stage and scales it up according to the configured prescaler value and passes it to the Updown counter.
+Depending on FW configurations of UPDOWNSEL and mode, Updown counter generates the output event and passes necassary information to 4 comparators.
+Comparators process them and generate the final output events.  
 
-Theory of Operation
-^^^^^^^^^^^^^^^^^^^
-  - FW drives various configuration register and external input signals
-  - Input stage selects and processes the appropriate input signal. These signal are passed to prescalar.
-  - Prescaler scales up the input signals and process it further. The resultant information is passed to the updowncounter.
-  - Updowncounter process it and the generates the output event. Then it sends some information to 4 comparators 
-  - Comparators process them and generate the final output events.   
+Timer Controller
+^^^^^^^^^^^^^^^^
+- Timer controller updates the Timer module state to active if the START bitfield is 1 in the REG_TIM0_CMD register and it is not active when the START bitfield is '0' and STOP bitfield is '1'. 
+- Timer controller parses the UPDATE bitfield to Updown counter and RESET bitfield to all sub modules if START bitfield is 0 in the REG_TIM0_CMD register.
+- At every positive edge of the clock, Timer controller calculates If the Timer is active and Prescaled input event is high. then only it parses the PRESC bitfield in the REG_TIM0_CFG to the Prescaler sub module and 4 TH bitfield in the REG_TIM0_CH*_TH to the 4 comparator sub modules.  
 
 Input Stage
 ^^^^^^^^^^^
-- Based on the change in the config register CLKSEL ,it is decided
-  whether the input selected from the set of inputs in ext_sig_i will
-  be either in sync with the rising edge of the
-  low_speed_clk_i or in sync with the ref clock.
-
-- At every positive edge of the clock,the input signal is selected from a set of signals in ext_sig_i using the config register INSEL value and how the events are generated from the signal is decided by the config register MODE.
+- Input stage uses the bitfield INSEL in REG_TIM0_CFG register and selects a signal from a set of signals in ext_sig_i.
+- Input stage uses the bitfield CLKSEL in REG_TIM0_CFG register and decides whether the input will be either in sync with the rising edge of the low_speed_clk_i or in sync with the ref clock.
+- At every positive edge of the selected clock and selected input signal, Input stage uses the bitfield MODE in REG_TIM0_CFG register to generate output signal according to the below information.
 
     ○ If MODE is 3’b000
 
-    ■ The event is always high
+      ■ The event is always high
 
     ○ If MODE is 3’b001
 
-    ■ The event is sensitive to the negation of the signal selected
+      ■ The event is sensitive to the negation of the signal selected
 
     ○ If MODE is 3’b010
 
-    ■ The output event is sensitive to the input signal selected
+      ■ The output event is sensitive to the input signal selected
     
     ○ If MODE is 3’b011
 
-    ■ The output event is sensitive to the rising edge of the selected
-    signal in sync with the clock.
+      ■ The output event is sensitive to the rising edge of the selected signal in sync with the clock.
 
     ○ If MODE is 3’b100
 
-    ■ The output event is sensitive to the rising edge of the selected
-    signal in sync with the clock.
+      ■ The output event is sensitive to the rising edge of the selected signal in sync with the clock.
 
     ○ If MODE is 3’b101
 
-    ■ The output event is sensitive to both rising edge and falling
-    edge of the selected signal in sync with the clock.
+      ■ The output event is sensitive to both rising edge and falling edge of the selected signal in sync with the clock.
 
     ○ If MODE is 3’b110
 
-    ■ If the timer is armed ,i,e,the register ARM is high then the
-    event is made high for the rising edge of the selected signal and
-    remains the same until the
-    next rising edge of the signal.If ARM register is low,then the output
-    event is low forever.
+      ■ If the timer is armed ,i,e,the register ARM is high then the event is made high for the rising edge of the selected signal and remains the same until the next rising edge of the signal.If ARM register is low,then the output event is low forever.
 
     ○ If MODE is 3’b111
 
-    ■ If the timer is armed ,i,e,the register ARM is high then the
-    event is made high for the falling edge of the selected signal and
-    remains the same until the next falling edge of the signal.If ARM
-    register is low,then the output event is low forever.
+      ■ If the timer is armed ,i,e,the register ARM is high then the event is made high for the falling edge of the selected signal and remains the same until the next falling edge of the signal.If ARM register is low,then the output event is low forever.
 
 Prescalar
 ^^^^^^^^^
-- The Event signal is scaled based on the
-  prescaler value(PRESC register value). At every positive edge of the
-  clock the register PRESC is
-  updated.The scaling happens in a way that after every time the
-  number of events in sync with the external clock
-  generated is equal to the PRESC register value then counter is made
-  to 0 and an event is generated.Like this whenever the lock synced
-  events generated is equal to PRESC value then one output event is
-  generated at positive edge of the clock(the frequency is scaled
-  according to the PRESC
-  register value).
+- The PRESC bitfield in the REG_TIM0_CFG register is parsed to Prescaler by Timer controller. 
+- Prescaler module maintains a counter whose initial value is 0. At every positive edge of the clock, counter gets incremented by 1 when event input signal is 1 and Timer is active.
+- When the counter value matches with the PRESC bitfield output event is set to '1' and the counter is updated to '0'. The above process continues and output events are generated.
+- Whenever the lock synced events generated is equal to PRESC value then one output event is generated at positive edge of the clock(the frequency is scaled according to the PRESC register value).
+- Both the counter and output event is set to 0. When either the hard reset is triggered or when Timer controller parses the RESET bitfield which is set to '1'.
 
 Updown counter
 ^^^^^^^^^^^^^^
@@ -721,7 +704,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM0_CH0_LUT* offset=0x01C
+**REG_TIM0_CH0_LUT** offset=0x01C
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -750,7 +733,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM0_CH1_LUT* offset=0x020
+**REG_TIM0_CH1_LUT** offset=0x020
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -780,7 +763,7 @@ APB ADVANCED CSRs
 ..
 
 
-**REG_TIM0_CH2_LUT* offset=0x024
+**REG_TIM0_CH2_LUT** offset=0x024
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -809,7 +792,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM0_CH3_LUT* offset=0x028
+**REG_TIM0_CH3_LUT** offset=0x028
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -1314,7 +1297,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM1_CH0_LUT* offset=0x05C
+**REG_TIM1_CH0_LUT** offset=0x05C
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -1343,7 +1326,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM1_CH1_LUT* offset=0x060
+**REG_TIM1_CH1_LUT** offset=0x060
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -1373,7 +1356,7 @@ APB ADVANCED CSRs
 ..
 
 
-**REG_TIM1_CH2_LUT* offset=0x064
+**REG_TIM1_CH2_LUT** offset=0x064
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -1402,7 +1385,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM1_CH3_LUT* offset=0x068
+**REG_TIM1_CH3_LUT** offset=0x068
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -1907,7 +1890,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM2_CH0_LUT* offset=0x09C
+**REG_TIM2_CH0_LUT** offset=0x09C
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -1936,7 +1919,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM2_CH1_LUT* offset=0x0A0
+**REG_TIM2_CH1_LUT** offset=0x0A0
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -1966,7 +1949,7 @@ APB ADVANCED CSRs
 ..
 
 
-**REG_TIM2_CH2_LUT* offset=0x0A4
+**REG_TIM2_CH2_LUT** offset=0x0A4
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -1995,7 +1978,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM2_CH3_LUT* offset=0x0A8
+**REG_TIM2_CH3_LUT** offset=0x0A8
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -2499,7 +2482,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM3_CH0_LUT* offset=0x0DC
+**REG_TIM3_CH0_LUT** offset=0x0DC
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -2528,7 +2511,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM3_CH1_LUT* offset=0x0E0
+**REG_TIM3_CH1_LUT** offset=0x0E0
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -2558,7 +2541,7 @@ APB ADVANCED CSRs
 ..
 
 
-**REG_TIM3_CH2_LUT* offset=0x0E4
+**REG_TIM3_CH2_LUT** offset=0x0E4
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -2587,7 +2570,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM3_CH3_LUT* offset=0x0E8
+**REG_TIM3_CH3_LUT** offset=0x0E8
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -2634,7 +2617,8 @@ APB ADVANCED CSRs
      - ADV_TIMER0 counter register
 
 ..
-**REG_EVENT_CFG* offset=0x100
+
+**REG_EVENT_CFG** offset=0x100
 
 .. list-table::
    :widths: 10 10 10 10 50
