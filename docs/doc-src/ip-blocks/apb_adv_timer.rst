@@ -721,6 +721,123 @@ APB ADVANCED CSRs
 
 ..
 
+**REG_TIM0_CH0_LUT* offset=0x01C
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+**REG_TIM0_CH1_LUT* offset=0x020
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+
+**REG_TIM0_CH2_LUT* offset=0x024
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+**REG_TIM0_CH3_LUT* offset=0x028
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
 **REG_TIM0_COUNTER** offset=0x02C
 
 .. list-table::
@@ -737,6 +854,1853 @@ APB ADVANCED CSRs
      - Status
      - R
      - ADV_TIMER0 counter register
+
+..
+
+ **REG_TIM1_CMD** offset=0x040
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:5
+     - 
+     - 
+     - 
+   * - ARM
+     - 4:4
+     - Config
+     - R/W
+     - arm command bitfield
+   * - RESET
+     - 3:3
+     - Config
+     - R/W
+     - reset command bitfield
+   * - UPDATE
+     - 2:2
+     - Config
+     - R/W
+     - update command bitfield
+   * - STOP
+     - 1:1
+     - Config
+     - R/W
+     - Stop command field
+   * - START
+     - 0:0
+     - Config
+     - R/W
+     - Start command field
+..
+
+**REG_TIM1_CFG** offset=0x044
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:24
+     - 
+     - 
+     - 
+   * - PRESC
+     - 23:16
+     - Config
+     - R/W
+     - prescaler value configuration bitfield
+   * - Reserved
+     - 15:13
+     - 
+     - 
+     - 
+   * - UPDOWNSEL
+     - 12:12
+     - Config
+     - R/W
+     - center-aligned mode configuration bitfield
+   * -
+     -
+     -
+     -
+     - 1’b0: The counter counts up and down alternatively
+   * -
+     -
+     -
+     -
+     - 1’b1: The counter counts up and resets to 0 when it reaches the threshold.
+   * - CLKSEL
+     - 11:11
+     - Config
+     - R/W
+     - clock source configuration bitfield
+   * -
+     -
+     -
+     -
+     - 1’b0: FLL
+   * -
+     -
+     -
+     -
+     - 1’b1: Reference clock at 32kHz
+   * - MODE
+     - 10:8
+     - Config
+     - R/W
+     - trigger mode configuration bitfield
+   * -
+     -
+     -
+     -
+     - 3’h0: Trigger event at each clock cycle
+   * -
+     -
+     -
+     -
+     - 3’h1: Trigger event if input source is 0
+   * -
+     -
+     -
+     -
+     - 3’h2: Trigger event if input source is 1
+   * -
+     -
+     -
+     -
+     - 3’h3: Trigger event on input source rising edge
+   * -
+     -
+     -
+     -
+     - 3’h4: Trigger event on input source falling edge
+   * -
+     -
+     -
+     -
+     - 3’h5: Trigger event on input source falling or rising edge
+   * -
+     -
+     -
+     -
+     - 3’h6: Trigger event on input source rising edge when armed
+   * -
+     -
+     -
+     -
+     - 3’h7: Trigger event on input source falling edge when armed
+   * - INSEL
+     - 7:0
+     - Config
+     - R/W
+     - input source configuration bitfield
+   * -
+     -
+     -
+     -
+     - 0-31: GPIO[0] to GPIO[31]
+   * -
+     -
+     -
+     -
+     - 32-35: Channel 0 to 3 of ADV_TIMER0
+   * -
+     -
+     -
+     -
+     - 36-39: Channel 0 to 3 of ADV_TIMER1
+   * -
+     -
+     -
+     -
+     - 40-43: Channel 0 to 3 of ADV_TIMER2
+   * -
+     -
+     -
+     -
+     - 44-47: Channel 0 to 3 of ADV_TIMER3
+..
+
+
+**REG_TIM1_TH** offset=0x048
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - TH_HI
+     - 31:16
+     - Config
+     - R/W
+     - Threshold high part configuration bitfield
+   * - TH_LO
+     - 15:0
+     - Config
+     - R/W
+     - Threshold low part configuration bitfield
+
+..
+
+**REG_TIM1_CH0_TH** offset=0x04C
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:19
+     - 
+     - 
+     - 
+   * - MODE
+     - 18:16
+     - Config
+     - R/W
+     - Channel 0 threshold match action on channel output signal configuration bitfield
+   * -
+     -
+     -
+     -     
+     - 3’h0: Set
+   * -
+     -
+     -
+     -     
+     - 3’h1: Toggle then next threshold match action is clear
+   * -
+     -
+     -
+     - 
+     - 3’h2: Set then next threshold match action is clear
+   * -
+     -
+     -
+     -
+     - 3’h3: Toggle
+   * -
+     -
+     -
+     -
+     - 3’h4: Clear
+   * -
+     -
+     -
+     -
+     - 3’h5: Toggle then next threshold match action is set
+   * -
+     -
+     -
+     -
+     - 3’h6: Clear then next threshold match action is set
+   * - TH
+     - 15:0
+     - Config
+     - R/W
+     - Channel 0 threshold configuration bitfield
+
+..
+
+**REG_TIM1_CH1_TH** offset=0x050
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:19
+     - 
+     - 
+     - 
+   * - MODE
+     - 18:16
+     - Config
+     - R/W
+     - Channel 1 threshold match action on channel output signal configuration bitfield
+   * -
+     -
+     -
+     -     
+     - 3’h0: Set
+   * -
+     -
+     -
+     -
+     - 3’h1: Toggle then next threshold match action is clear
+   * -
+     -
+     -
+     -
+     - 3’h2: Set then next threshold match action is clear
+   * -
+     -
+     -
+     -
+     - 3’h3: Toggle
+   * -
+     -
+     -
+     -
+     - 3’h4: Clear
+   * -
+     -
+     -
+     -
+     - 3’h5: Toggle then next threshold match action is set
+   * -
+     -
+     -
+     -
+     - 3’h6: Clear then next threshold match action is set
+   * - TH
+     - 15:0
+     - Config
+     - R/W
+     - Channel 1 threshold configuration bitfield
+
+..
+
+**REG_TIM1_CH2_TH** offset=0x054
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:19
+     - 
+     - 
+     - 
+   * - MODE
+     - 18:16
+     - Config
+     - R/W
+     - Channel 2 threshold match action on channel output signal configuration bitfield
+   * -
+     -
+     -
+     -     
+     - 3’h0: Set
+   * -
+     -
+     -
+     -     
+     - 3’h1: Toggle then next threshold match action is clear
+   * -
+     -
+     -
+     -     
+     - 3’h2: Set then next threshold match action is clear
+   * -
+     -
+     -
+     -     
+     - 3’h3: Toggle
+   * -
+     -
+     -
+     -    
+     - 3’h4: Clear
+   * -
+     -
+     -
+     -     
+     - 3’h5: Toggle then next threshold match action is set
+   * -
+     -
+     -
+     -    
+     - 3’h6: Clear then next threshold match action is set
+   * - TH
+     - 15:0
+     - Config
+     - R/W
+     - Channel 2 threshold configuration bitfield
+
+..
+
+**REG_TIM1_CH3_TH** offset=0x058
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:19
+     - 
+     - 
+     - 
+   * - MODE
+     - 18:16
+     - Config
+     - R/W
+     - Channel 3 threshold match action on channel output signal configuration bitfield
+   * -
+     -
+     -
+     -
+     - 3’h0: Set
+   * -
+     -
+     -
+     -
+     - 3’h1: Toggle then next threshold match action is clear
+   * -
+     -
+     -
+     -     
+     - 3’h2: Set then next threshold match action is clear
+   * -
+     -
+     -
+     -     
+     - 3’h3: Toggle
+   * -
+     -
+     -
+     -     
+     - 3’h4: Clear
+   * -
+     -
+     -
+     -    
+     - 3’h5: Toggle then next threshold match action is set
+   * -
+     -
+     -
+     -     
+     - 3’h6: Clear then next threshold match action is set
+   * - TH
+     - 15:0
+     - Config
+     - R/W
+     - Channel 3 threshold configuration bitfield
+
+..
+
+**REG_TIM1_CH0_LUT* offset=0x05C
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+**REG_TIM1_CH1_LUT* offset=0x060
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+
+**REG_TIM1_CH2_LUT* offset=0x064
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+**REG_TIM1_CH3_LUT* offset=0x068
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+**REG_TIM1_COUNTER** offset=0x06C
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - T1_COUNTER
+     - 31:0
+     - Status
+     - R
+     - ADV_TIMER0 counter register
+
+..
+
+ **REG_TIM2_CMD** offset=0x080
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:5
+     - 
+     - 
+     - 
+   * - ARM
+     - 4:4
+     - Config
+     - R/W
+     - arm command bitfield
+   * - RESET
+     - 3:3
+     - Config
+     - R/W
+     - reset command bitfield
+   * - UPDATE
+     - 2:2
+     - Config
+     - R/W
+     - update command bitfield
+   * - STOP
+     - 1:1
+     - Config
+     - R/W
+     - Stop command field
+   * - START
+     - 0:0
+     - Config
+     - R/W
+     - Start command field
+..
+
+**REG_TIM2_CFG** offset=0x084
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:24
+     - 
+     - 
+     - 
+   * - PRESC
+     - 23:16
+     - Config
+     - R/W
+     - prescaler value configuration bitfield
+   * - Reserved
+     - 15:13
+     - 
+     - 
+     - 
+   * - UPDOWNSEL
+     - 12:12
+     - Config
+     - R/W
+     - center-aligned mode configuration bitfield
+   * -
+     -
+     -
+     -
+     - 1’b0: The counter counts up and down alternatively
+   * -
+     -
+     -
+     -
+     - 1’b1: The counter counts up and resets to 0 when it reaches the threshold.
+   * - CLKSEL
+     - 11:11
+     - Config
+     - R/W
+     - clock source configuration bitfield
+   * -
+     -
+     -
+     -
+     - 1’b0: FLL
+   * -
+     -
+     -
+     -
+     - 1’b1: Reference clock at 32kHz
+   * - MODE
+     - 10:8
+     - Config
+     - R/W
+     - trigger mode configuration bitfield
+   * -
+     -
+     -
+     -
+     - 3’h0: Trigger event at each clock cycle
+   * -
+     -
+     -
+     -
+     - 3’h1: Trigger event if input source is 0
+   * -
+     -
+     -
+     -
+     - 3’h2: Trigger event if input source is 1
+   * -
+     -
+     -
+     -
+     - 3’h3: Trigger event on input source rising edge
+   * -
+     -
+     -
+     -
+     - 3’h4: Trigger event on input source falling edge
+   * -
+     -
+     -
+     -
+     - 3’h5: Trigger event on input source falling or rising edge
+   * -
+     -
+     -
+     -
+     - 3’h6: Trigger event on input source rising edge when armed
+   * -
+     -
+     -
+     -
+     - 3’h7: Trigger event on input source falling edge when armed
+   * - INSEL
+     - 7:0
+     - Config
+     - R/W
+     - input source configuration bitfield
+   * -
+     -
+     -
+     -
+     - 0-31: GPIO[0] to GPIO[31]
+   * -
+     -
+     -
+     -
+     - 32-35: Channel 0 to 3 of ADV_TIMER0
+   * -
+     -
+     -
+     -
+     - 36-39: Channel 0 to 3 of ADV_TIMER1
+   * -
+     -
+     -
+     -
+     - 40-43: Channel 0 to 3 of ADV_TIMER2
+   * -
+     -
+     -
+     -
+     - 44-47: Channel 0 to 3 of ADV_TIMER3
+..
+
+
+**REG_TIM2_TH** offset=0x088
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - TH_HI
+     - 31:16
+     - Config
+     - R/W
+     - Threshold high part configuration bitfield
+   * - TH_LO
+     - 15:0
+     - Config
+     - R/W
+     - Threshold low part configuration bitfield
+
+..
+
+**REG_TIM2_CH0_TH** offset=0x08C
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:19
+     - 
+     - 
+     - 
+   * - MODE
+     - 18:16
+     - Config
+     - R/W
+     - Channel 0 threshold match action on channel output signal configuration bitfield
+   * -
+     -
+     -
+     -     
+     - 3’h0: Set
+   * -
+     -
+     -
+     -     
+     - 3’h1: Toggle then next threshold match action is clear
+   * -
+     -
+     -
+     - 
+     - 3’h2: Set then next threshold match action is clear
+   * -
+     -
+     -
+     -
+     - 3’h3: Toggle
+   * -
+     -
+     -
+     -
+     - 3’h4: Clear
+   * -
+     -
+     -
+     -
+     - 3’h5: Toggle then next threshold match action is set
+   * -
+     -
+     -
+     -
+     - 3’h6: Clear then next threshold match action is set
+   * - TH
+     - 15:0
+     - Config
+     - R/W
+     - Channel 0 threshold configuration bitfield
+
+..
+
+**REG_TIM2_CH1_TH** offset=0x090
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:19
+     - 
+     - 
+     - 
+   * - MODE
+     - 18:16
+     - Config
+     - R/W
+     - Channel 1 threshold match action on channel output signal configuration bitfield
+   * -
+     -
+     -
+     -     
+     - 3’h0: Set
+   * -
+     -
+     -
+     -
+     - 3’h1: Toggle then next threshold match action is clear
+   * -
+     -
+     -
+     -
+     - 3’h2: Set then next threshold match action is clear
+   * -
+     -
+     -
+     -
+     - 3’h3: Toggle
+   * -
+     -
+     -
+     -
+     - 3’h4: Clear
+   * -
+     -
+     -
+     -
+     - 3’h5: Toggle then next threshold match action is set
+   * -
+     -
+     -
+     -
+     - 3’h6: Clear then next threshold match action is set
+   * - TH
+     - 15:0
+     - Config
+     - R/W
+     - Channel 1 threshold configuration bitfield
+
+..
+
+**REG_TIM2_CH2_TH** offset=0x094
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:19
+     - 
+     - 
+     - 
+   * - MODE
+     - 18:16
+     - Config
+     - R/W
+     - Channel 2 threshold match action on channel output signal configuration bitfield
+   * -
+     -
+     -
+     -     
+     - 3’h0: Set
+   * -
+     -
+     -
+     -     
+     - 3’h1: Toggle then next threshold match action is clear
+   * -
+     -
+     -
+     -     
+     - 3’h2: Set then next threshold match action is clear
+   * -
+     -
+     -
+     -     
+     - 3’h3: Toggle
+   * -
+     -
+     -
+     -    
+     - 3’h4: Clear
+   * -
+     -
+     -
+     -     
+     - 3’h5: Toggle then next threshold match action is set
+   * -
+     -
+     -
+     -    
+     - 3’h6: Clear then next threshold match action is set
+   * - TH
+     - 15:0
+     - Config
+     - R/W
+     - Channel 2 threshold configuration bitfield
+
+..
+
+**REG_TIM2_CH3_TH** offset=0x098
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:19
+     - 
+     - 
+     - 
+   * - MODE
+     - 18:16
+     - Config
+     - R/W
+     - Channel 3 threshold match action on channel output signal configuration bitfield
+   * -
+     -
+     -
+     -
+     - 3’h0: Set
+   * -
+     -
+     -
+     -
+     - 3’h1: Toggle then next threshold match action is clear
+   * -
+     -
+     -
+     -     
+     - 3’h2: Set then next threshold match action is clear
+   * -
+     -
+     -
+     -     
+     - 3’h3: Toggle
+   * -
+     -
+     -
+     -     
+     - 3’h4: Clear
+   * -
+     -
+     -
+     -    
+     - 3’h5: Toggle then next threshold match action is set
+   * -
+     -
+     -
+     -     
+     - 3’h6: Clear then next threshold match action is set
+   * - TH
+     - 15:0
+     - Config
+     - R/W
+     - Channel 3 threshold configuration bitfield
+
+..
+
+**REG_TIM2_CH0_LUT* offset=0x09C
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+**REG_TIM2_CH1_LUT* offset=0x0A0
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+
+**REG_TIM2_CH2_LUT* offset=0x0A4
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+**REG_TIM2_CH3_LUT* offset=0x0A8
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+**REG_TIM2_COUNTER** offset=0x0AC
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - T2_COUNTER
+     - 31:0
+     - Status
+     - R
+     - ADV_TIMER0 counter register
+
+..
+ **REG_TIM3_CMD** offset=0x0C0
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:5
+     - 
+     - 
+     - 
+   * - ARM
+     - 4:4
+     - Config
+     - R/W
+     - arm command bitfield
+   * - RESET
+     - 3:3
+     - Config
+     - R/W
+     - reset command bitfield
+   * - UPDATE
+     - 2:2
+     - Config
+     - R/W
+     - update command bitfield
+   * - STOP
+     - 1:1
+     - Config
+     - R/W
+     - Stop command field
+   * - START
+     - 0:0
+     - Config
+     - R/W
+     - Start command field
+..
+
+**REG_TIM3_CFG** offset=0x0C4
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:24
+     - 
+     - 
+     - 
+   * - PRESC
+     - 23:16
+     - Config
+     - R/W
+     - prescaler value configuration bitfield
+   * - Reserved
+     - 15:13
+     - 
+     - 
+     - 
+   * - UPDOWNSEL
+     - 12:12
+     - Config
+     - R/W
+     - center-aligned mode configuration bitfield
+   * -
+     -
+     -
+     -
+     - 1’b0: The counter counts up and down alternatively
+   * -
+     -
+     -
+     -
+     - 1’b1: The counter counts up and resets to 0 when it reaches the threshold.
+   * - CLKSEL
+     - 11:11
+     - Config
+     - R/W
+     - clock source configuration bitfield
+   * -
+     -
+     -
+     -
+     - 1’b0: FLL
+   * -
+     -
+     -
+     -
+     - 1’b1: Reference clock at 32kHz
+   * - MODE
+     - 10:8
+     - Config
+     - R/W
+     - trigger mode configuration bitfield
+   * -
+     -
+     -
+     -
+     - 3’h0: Trigger event at each clock cycle
+   * -
+     -
+     -
+     -
+     - 3’h1: Trigger event if input source is 0
+   * -
+     -
+     -
+     -
+     - 3’h2: Trigger event if input source is 1
+   * -
+     -
+     -
+     -
+     - 3’h3: Trigger event on input source rising edge
+   * -
+     -
+     -
+     -
+     - 3’h4: Trigger event on input source falling edge
+   * -
+     -
+     -
+     -
+     - 3’h5: Trigger event on input source falling or rising edge
+   * -
+     -
+     -
+     -
+     - 3’h6: Trigger event on input source rising edge when armed
+   * -
+     -
+     -
+     -
+     - 3’h7: Trigger event on input source falling edge when armed
+   * - INSEL
+     - 7:0
+     - Config
+     - R/W
+     - input source configuration bitfield
+   * -
+     -
+     -
+     -
+     - 0-31: GPIO[0] to GPIO[31]
+   * -
+     -
+     -
+     -
+     - 32-35: Channel 0 to 3 of ADV_TIMER0
+   * -
+     -
+     -
+     -
+     - 36-39: Channel 0 to 3 of ADV_TIMER1
+   * -
+     -
+     -
+     -
+     - 40-43: Channel 0 to 3 of ADV_TIMER2
+   * -
+     -
+     -
+     -
+     - 44-47: Channel 0 to 3 of ADV_TIMER3
+..
+
+
+**REG_TIM3_TH** offset=0x0C8
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - TH_HI
+     - 31:16
+     - Config
+     - R/W
+     - Threshold high part configuration bitfield
+   * - TH_LO
+     - 15:0
+     - Config
+     - R/W
+     - Threshold low part configuration bitfield
+
+..
+
+**REG_TIM3_CH0_TH** offset=0x0CC
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:19
+     - 
+     - 
+     - 
+   * - MODE
+     - 18:16
+     - Config
+     - R/W
+     - Channel 0 threshold match action on channel output signal configuration bitfield
+   * -
+     -
+     -
+     -     
+     - 3’h0: Set
+   * -
+     -
+     -
+     -     
+     - 3’h1: Toggle then next threshold match action is clear
+   * -
+     -
+     -
+     - 
+     - 3’h2: Set then next threshold match action is clear
+   * -
+     -
+     -
+     -
+     - 3’h3: Toggle
+   * -
+     -
+     -
+     -
+     - 3’h4: Clear
+   * -
+     -
+     -
+     -
+     - 3’h5: Toggle then next threshold match action is set
+   * -
+     -
+     -
+     -
+     - 3’h6: Clear then next threshold match action is set
+   * - TH
+     - 15:0
+     - Config
+     - R/W
+     - Channel 0 threshold configuration bitfield
+
+..
+
+**REG_TIM3_CH1_TH** offset=0x0D0
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:19
+     - 
+     - 
+     - 
+   * - MODE
+     - 18:16
+     - Config
+     - R/W
+     - Channel 1 threshold match action on channel output signal configuration bitfield
+   * -
+     -
+     -
+     -     
+     - 3’h0: Set
+   * -
+     -
+     -
+     -
+     - 3’h1: Toggle then next threshold match action is clear
+   * -
+     -
+     -
+     -
+     - 3’h2: Set then next threshold match action is clear
+   * -
+     -
+     -
+     -
+     - 3’h3: Toggle
+   * -
+     -
+     -
+     -
+     - 3’h4: Clear
+   * -
+     -
+     -
+     -
+     - 3’h5: Toggle then next threshold match action is set
+   * -
+     -
+     -
+     -
+     - 3’h6: Clear then next threshold match action is set
+   * - TH
+     - 15:0
+     - Config
+     - R/W
+     - Channel 1 threshold configuration bitfield
+
+..
+
+**REG_TIM3_CH2_TH** offset=0x0D4
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:19
+     - 
+     - 
+     - 
+   * - MODE
+     - 18:16
+     - Config
+     - R/W
+     - Channel 2 threshold match action on channel output signal configuration bitfield
+   * -
+     -
+     -
+     -     
+     - 3’h0: Set
+   * -
+     -
+     -
+     -     
+     - 3’h1: Toggle then next threshold match action is clear
+   * -
+     -
+     -
+     -     
+     - 3’h2: Set then next threshold match action is clear
+   * -
+     -
+     -
+     -     
+     - 3’h3: Toggle
+   * -
+     -
+     -
+     -    
+     - 3’h4: Clear
+   * -
+     -
+     -
+     -     
+     - 3’h5: Toggle then next threshold match action is set
+   * -
+     -
+     -
+     -    
+     - 3’h6: Clear then next threshold match action is set
+   * - TH
+     - 15:0
+     - Config
+     - R/W
+     - Channel 2 threshold configuration bitfield
+
+..
+
+**REG_TIM3_CH3_TH** offset=0x0D8
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:19
+     - 
+     - 
+     - 
+   * - MODE
+     - 18:16
+     - Config
+     - R/W
+     - Channel 3 threshold match action on channel output signal configuration bitfield
+   * -
+     -
+     -
+     -
+     - 3’h0: Set
+   * -
+     -
+     -
+     -
+     - 3’h1: Toggle then next threshold match action is clear
+   * -
+     -
+     -
+     -     
+     - 3’h2: Set then next threshold match action is clear
+   * -
+     -
+     -
+     -     
+     - 3’h3: Toggle
+   * -
+     -
+     -
+     -     
+     - 3’h4: Clear
+   * -
+     -
+     -
+     -    
+     - 3’h5: Toggle then next threshold match action is set
+   * -
+     -
+     -
+     -     
+     - 3’h6: Clear then next threshold match action is set
+   * - TH
+     - 15:0
+     - Config
+     - R/W
+     - Channel 3 threshold configuration bitfield
+
+..
+
+**REG_TIM3_CH0_LUT* offset=0x0DC
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+**REG_TIM3_CH1_LUT* offset=0x0E0
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+
+**REG_TIM3_CH2_LUT* offset=0x0E4
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+**REG_TIM3_CH3_LUT* offset=0x0E8
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:18
+     - 
+     - 
+     - 
+   * - FLT
+     - 23:16
+     - Config
+     - R/W
+     - FLT
+   * - LUT
+     - 15:0
+     - Config
+     - R/W
+     - LUT
+
+..
+
+**REG_TIM3_COUNTER** offset=0x0EC
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - T3_COUNTER
+     - 31:0
+     - Status
+     - R
+     - ADV_TIMER0 counter register
+
+..
+**REG_EVENT_CFG* offset=0x100
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:20
+     - 
+     - 
+     - 
+   * - OUT_SEL_EVT_ENABLE
+     - 19:16
+     - Config
+     - R/W
+     - Output event select ENABLE
+   * - OUT_SEL_EVT3
+     - 15:12
+     - Config
+     - R/W
+     - Output event select 3
+   * - OUT_SEL_EVT2
+     - 11:8
+     - Config
+     - R/W
+     - Output event select 2
+   * - OUT_SEL_EVT1
+     - 7:4
+     - Config
+     - R/W
+     - Output event select 1
+   * - OUT_SEL_EVT0
+     - 3:0
+     - Config
+     - R/W
+     - Output event select 0
+
+..
+
+**REG_TIM3_COUNTER** offset=0x0EC
+
+.. list-table::
+   :widths: 10 10 10 10 50
+   :header-rows: 1
+
+   * - Field
+     - Bits
+     - Type
+     - Access
+     - Description
+   * - Reserved
+     - 31:4
+     - 
+     - 
+     - 
+   * - CLK_ENABLE
+     - 3:0
+     - Status
+     - R/W
+     - Each bit acts as clock enable for each timer. For eg: if 2nd bit is set Timer 2 clock is enabled. 
+
+..  
 
 Input Ports
 +++++++++++
