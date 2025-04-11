@@ -26,11 +26,12 @@ Features
 --------
 
 - Multiple trigger input sources:
+
   - Output signal channels of all timers
   - 32 GPIOs
   - Reference clock at 32kHz
   - FLL clock
-  
+
 - Configurable input trigger modes for each timer
 - Configurable prescaler for each timer
 - Configurable counting mode for each timer
@@ -60,11 +61,13 @@ It handles register reads and writes according to the APB protocol, providing a 
 
 APB ADVANCED TIMER Registers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-There are few common registers that store the following configurations
+- There are few common registers that store the following configurations.
+
   - Output event select  
   - Clock enable
 
-There are 4 timer modules and each timer module has its own set of registers. Each of the timer module specific registers store the following configuration:
+- There are 4 timer modules and each timer module has its own set of registers. Each of the timer module specific registers store the following configuration:
+
   - Arm, Reset, Update, Stop and Start  
   - Prescalar value, Updownsel, Clksel, Input trigger mode select, Input pins select
   - Threshold high and Threshold low
@@ -99,37 +102,37 @@ Input Stage
 - Input stage uses the bitfield CLKSEL in REG_TIM0_CFG register and decides whether the input will be either in sync with the rising edge of the low_speed_clk_i or in sync with the ref clock.
 - At every positive edge of the selected clock and selected input signal, Input stage uses the bitfield MODE in REG_TIM0_CFG register to generate output signal according to the below information.
 
-    ○ If MODE is 3’b000
+  - If MODE is 3’b000
 
-      ■ The event is always high
+    - The event is always high
 
-    ○ If MODE is 3’b001
+  - If MODE is 3’b001
 
-      ■ The event is sensitive to the negation of the signal selected
+    - The event is sensitive to the negation of the signal selected
 
-    ○ If MODE is 3’b010
+  - If MODE is 3’b010
 
-      ■ The output event is sensitive to the input signal selected
+    - The output event is sensitive to the input signal selected
     
-    ○ If MODE is 3’b011
+  - If MODE is 3’b011
 
-      ■ The output event is sensitive to the rising edge of the selected signal in sync with the clock.
+    - The output event is sensitive to the rising edge of the selected signal in sync with the clock.
 
-    ○ If MODE is 3’b100
+  - If MODE is 3’b100
 
-      ■ The output event is sensitive to the rising edge of the selected signal in sync with the clock.
+    - The output event is sensitive to the rising edge of the selected signal in sync with the clock.
 
-    ○ If MODE is 3’b101
+  - If MODE is 3’b101
 
-      ■ The output event is sensitive to both rising edge and falling edge of the selected signal in sync with the clock.
+    - The output event is sensitive to both rising edge and falling edge of the selected signal in sync with the clock.
 
-    ○ If MODE is 3’b110
+  - If MODE is 3’b110
 
-      ■ If the timer is armed ,i,e,the register ARM is high then the event is made high for the rising edge of the selected signal and remains the same until the next rising edge of the signal.If ARM register is low,then the output event is low forever.
+    - If the timer is armed ,i,e,the register ARM is high then the event is made high for the rising edge of the selected signal and remains the same until the next rising edge of the signal.If ARM register is low,then the output event is low forever.
 
-    ○ If MODE is 3’b111
+  - If MODE is 3’b111
 
-      ■ If the timer is armed ,i,e,the register ARM is high then the event is made high for the falling edge of the selected signal and remains the same until the next falling edge of the signal.If ARM register is low,then the output event is low forever.
+    - If the timer is armed ,i,e,the register ARM is high then the event is made high for the falling edge of the selected signal and remains the same until the next falling edge of the signal.If ARM register is low,then the output event is low forever.
 
 Prescalar
 ^^^^^^^^^
@@ -188,9 +191,11 @@ Comparator
 - define OP_RST 3'b100
 - define OP_TOGSET 3'b101
 - define OP_RSTSET 3'b110
-- If MODE value is OP_SET
-   ○ Then the output event is high when there is a match otherwise
-   remains the same .
+
+- If MODE value is 3'b000 (OP_SET) 
+
+  - Then the output event is high when there is a match otherwise
+   remains the same.
 
 - If MODE value is OP_TOGRST
    ○ Then if sawtooth mode is on ,then if a match happens then the
