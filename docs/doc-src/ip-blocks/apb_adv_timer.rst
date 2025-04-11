@@ -2686,21 +2686,3 @@ APB ADVANCED CSRs
 
 ..  
 
-Input Ports
-+++++++++++
-
-1. **HCLK**: External clock for synchronization
-2. **HRESETn**: Reset pin to reset the timer
-3. **APB bus pins**
-4. **dft_cg_enable_i**
-5. **low_speed_clk_i**
-6. **ext_sig_i**: A set of 32 GPIOs
-
-Output Ports
-++++++++++++
-
-1. **events_o[3:0]**
-2. **ch0_o[3:0]**
-3. **ch1_o[3:0]**
-4. **ch2_o[3:0]**
-5. **ch3_o[3:0]**
