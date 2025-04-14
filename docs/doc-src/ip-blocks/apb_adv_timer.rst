@@ -35,7 +35,7 @@ Features
 - Configurable input trigger modes for each timer
 - Configurable prescaler for each timer
 - Configurable counting mode for each timer
-- Configurable channel threshold action for each timer
+- Configurable channel comapartor threshold and comapartor operyion for each timer
 - Four configurable output events
 - Configurable clock gating of each timer
 
@@ -69,10 +69,10 @@ APB ADVANCED TIMER Registers
 - There are 4 timer modules and each timer module has its own set of registers. Each of the timer module specific registers store the following configuration:
 
   - Arm, Reset, Update, Stop and Start  
-  - Prescalar value, Updownsel, Clksel, Input trigger mode select, Input pins select
-  - Threshold high and Threshold low
+  - Prescalar value, Sawtooth mode, Clksel, Input trigger mode select, Input pins select
+  - Count start and Count emd.
   - Counter 
-  - Output trigger mode 
+  - Comparator Threshold and Comparator operation mode
 
 Timer Module
 ~~~~~~~~~~~~
@@ -83,18 +83,30 @@ Timer Module
 
    TIMER Block Diagram
 
-Timer module has various submodules/components like Timer Controller, Input stage, Prescalar, Updown counter and Comparators.
-FW drives various configuration register and when the external input/stimulus is provided, Input stage selects and processes the appropriate inputs.
-Timer controller manages all the other submodules through few control signals like active, controller reset and update.
-Prescalar further process the signals from input stage and scales it up according to the configured prescaler value and passes it to the Updown counter.
-Depending on FW configurations of UPDOWNSEL and mode, Updown counter generates the output event and passes necassary information to 4 comparators.
-Comparators process them and generate the final output events.  
+Data flow:
+^^^^^^^^^^^
+- Timer module has various submodules/components like Timer Controller, Input stage, Prescalar, Updown counter and Comparators.
+- Timer controller manages all the other submodules through few control signals like active, controller reset and update.
+- FW performs Initialization and drives various configuration register. 
+- TImer module's main objective is to generate PWM signal for the external input/stimulus provided.
+- In order to generate the PWM, the data flows through the following submodules which can also be seen TIMER Block diagram.
+  
+  - **(ext_sig_i )** -> input stage -> prescaler ->updown counter ->comparators -> **(PWM)**
+
 
 Timer Controller
 ^^^^^^^^^^^^^^^^
-- Timer controller updates the Timer module state to active if the START bitfield is 1 in the REG_TIM0_CMD register and it is not active when the START bitfield is '0' and STOP bitfield is '1'. 
-- Timer controller parses the UPDATE bitfield to Updown counter and RESET bitfield to all sub modules if START bitfield is 0 in the REG_TIM0_CMD register.
-- At every positive edge of the clock, Timer controller calculates If the Timer is active and Prescaled input event is high. then only it parses the PRESC bitfield in the REG_TIM0_CFG to the Prescaler sub module and 4 TH bitfield in the REG_TIM0_CH*_TH to the 4 comparator sub modules.  
+- Timer controller generates active signal. 
+
+  -  The active signal is '1' when the START bitfield is '1' in the REG_TIM0_CMD register.
+
+  -  The active signal is '0' when the START bitfield is '0' and STOP bitfield is '1' in the REG_TIM0_CMD register. 
+
+- Timer controller generates update and controller reset signals, update siganl is driven by the value UPDATE bitfield and controller reset siganl is driven by the value RESET bitfield to all sub modules in the following conditions
+
+  - if START bitfield is 0 in the REG_TIM0_CMD register.
+
+  - if START bitfield is '1' in the REG_TIM0_CMD register and active signal is '1'. When the Timer starts for the first time.
 
 Input Stage
 ^^^^^^^^^^^
@@ -136,119 +148,108 @@ Input Stage
 
 Prescalar
 ^^^^^^^^^
-- The PRESC bitfield in the REG_TIM0_CFG register is parsed to Prescaler by Timer controller. 
-- Prescaler module maintains a counter whose initial value is 0. At every positive edge of the clock, counter gets incremented by 1 when event input signal is 1 and Timer is active.
-- When the counter value matches with the PRESC bitfield output event is set to '1' and the counter is updated to '0'. The above process continues and output events are generated.
+- The PRESC bitfield in the REG_TIM0_CFG register is parsed to Prescaler. 
+- The Event signal generated in the previous input stage is scaled based on the PRESC value.
+- Prescaler module maintains a internal counter whose initial value is 0. At every positive edge of the clock, counter gets incremented by '1' when event input signal is '1' and Timer is active.
+- When the internal counter value matches with the PRESC bitfield output event is set to '1' and the counter is updated to '0'. The above process continues and output events are generated.
 - Whenever the lock synced events generated is equal to PRESC value then one output event is generated at positive edge of the clock(the frequency is scaled according to the PRESC register value).
 - Both the counter and output event is set to 0. When either the hard reset is triggered or when Timer controller parses the RESET bitfield which is set to '1'.
 
 Updown counter
 ^^^^^^^^^^^^^^
-- For every event the counter is incremented starting from
-  the start value(TH_LO register) .Based on the register UPDOWNCLK
-  representing the sawtooth mode,it is decided whether the counter
-  should reset after reaching end of the counting range (TH_HI) or it
-  should reverse the
-  direction and go counting down to start value(TH_LO) after
-  which it resets to the default values of start,stop,direction,etc .
+- The output event generated from prescaler sub module is provided as the input for the updown counter and it is processed further.
+- The active, controller reset and update signals are provided by the Timer controller.  
+- Updown counter maintains a counter and direction(0- up and 1- down).
+- During the initialization, counter value is set to COUNT_START and direction to 0 and any new values of SAWTOOTH, COUNT_START and COUNT_END bitfield can be provided by FW. 
+- At every positive edge of the clock, if output event generated from prescaler is '1' and active sigmal is '1' then the following operation is performed.
 
-- At every input event in sync with the clock an **output event** is
-  generated and also the counter is incremented .Whenever the counter
-  reaches the end of a counting range an event is generated
-  representing the end of the counter and reset happens.The output port
-  representing the counter is updated at every clock positive edge.
+  - if the SAWTOOTH bitfield is '1':
 
-- Here, the counter value,event representing the end of the
-  timer,the **output event**  are generated.
+    - The counter is increemented till it reaches the value of COUNT_END, then an end event is generated.
 
+    - The counter is resetted back to value of COUNT_START bitfield and this process is repeated to generate multiple end events. 
+ 
+  - if the SAWTOOTH bitfield is '0':
+
+    - The counter is increemented till it reaches the value of COUNT_END.
+
+    - Then the counter is decreemented till it reaches the value of COUNT_START. (counter goes in a sawtooth fashion)
+
+    - Now, an end event is generated. this process is repeated to generate multiple end events.
+
+- Re-Initialization of the Updown counter can be done in the following scenraios.
+
+  - Change in update signal: 
+
+    - When the controller is inactive. if the update signal is '1' and active signal is '0'. 
+
+    - When an end event is generated and if the update signal is '1'. 
+
+    - if update signal is '1' and above two conditions are not met. upcounter counter is initialized for the next end event generation irrespective of update signal value at that instance of time. 
+
+  - Change in reset signal: 
+
+    - When the controller reset signal is '1'. 
+
+- At every positive edge of the clock, if the active siganl is '1' then output event is driven by the value of output event generated from prescaler.
+- At every positive edge of the clock, The counter value is updated in the REG_TIM0_COUNTER.
+- If the hard reset is '0', then the all the register and internal meta data is set to the reset values.
 
 Comparator
 ^^^^^^^^^^
-- At every positive edge of the clock,When the timer is started the
-  first time or explicitly updated through the update
-  command register named UPDATE, the module is updated then, the
-  register values TH and MODE of the register are read in which TH
-  value is the comparator threshold value and MODE is the operation
-  that should be done when counter of the up down counter reaches the
-  comparator threshold value.
+- The counter value, end event and the output event generated in the updown counter are provided as input to the comparator. 
+- The active, controller reset and update signals are provided by the Timer controller.
+- COMP_THRESHOLD and COMP_OP can only be updated and used by the comparator. when the update signal is '1'. 
+- At every positive edge of the clock, when the output event coming out of the up down counter is '1' and active sigan is '1'. Compartor checks for the two events that can happen, 
 
-- At every positive edge of the clock when the event coming out of
-  the up down counter is high ,based on the register MODE value ,output
-  is generated accordingly.
+  - **(match event)** is set to '1' when timer counter value reaches the comparator offset 
 
-- There are two events that can happen in the comparator, 
+  - **(event_2)** set to '1' in the following two scenarios:
 
-  ○ When
-  timer counter value reaches the comparator offset **(match event)**
+    - When the SAWTOOTH register is '1' and end event is '1'.
 
-  ○ When the UPDOWNSEL register is high and the timer reaches its end
-  or when UPDOWNSEL is low and the timer counter value reaches the
-  comparator threshold offset. **(event_2)**
-- define OP_SET 3'b000
-- define OP_TOGRST 3'b001
-- define OP_SETRST 3'b010
-- define OP_TOG 3'b011
-- define OP_RST 3'b100
-- define OP_TOGSET 3'b101
-- define OP_RSTSET 3'b110
+    - When SAWTOOTH is low and the timer counter value reaches the COMP_THRESHOLD. 
 
-- If MODE value is 3'b000 (OP_SET) 
+- Then, based on the match_event, event_2 and COMP_OP value, PWM output event is generated accordingly.
 
-  - Then the output event is high when there is a match otherwise
-   remains the same.
+- If COMP_OP value is 3'b000 (OP_SET) 
 
-- If MODE value is OP_TOGRST
-   ○ Then if sawtooth mode is on ,then if a match happens then the
-   output event is toggled else if event_2
-   happens then output event is low.
+  - Then the output event is high when there is a match otherwise remains the same.
 
-   ○ If sawtooth mode is off,then if match event happens and event_2
-   doesn't happen then output event is toggle and event_2 is made high
-   ,else if match event happens and event_2 also happens then output
-   event is made low and event_2 is also made low.
+- If COMP_OP value is 3'b001 (OP_TOGRST)
+  
+  - Then if sawtooth mode is on ,then if a match happens then the output event is toggled else if event_2 happens then output event is low.
 
-- If MODE value is OP_SETRST
-   ○ Then if sawtooth mode is on ,then if a match happens then the
-   output event is high else if event_2 happens then output event is
-   low.
+  - If sawtooth mode is off,then if match event happens and event_2 doesn't happen then output event is toggle and event_2 is made high ,else if match event happens and event_2 also happens then output event is made low and event_2 is also made low.
 
-   ○ If sawtooth mode is off,then if match event happens and event_2
-   doesn't happen then output event is made high and event_2 is made
-   high.,else if match event happens and event_2 also happens then
-   output event is made low and event_2 is also made low.
+- If COMP_OP value is 3'b010 (OP_SETRST)
 
-- If MODE value is OP_TOG
+  - Then if sawtooth mode is on ,then if a match happens then the output event is high else if event_2 happens then output event is low.
 
-   ○ Then the output event is toggled when the match event occurs else
-   remains the same.
+  - If sawtooth mode is off,then if match event happens and event_2 doesn't happen then output event is made high and event_2 is made high.,else if match event happens and event_2 also happens then output event is made low and event_2 is also made low.
 
-- If MODE value is OP_RST
-   ○ Then the output event is made low when the match event occurs
-   else remains the same.
+- If COMP_OP value is 3'b011 (OP_TOG) 
 
-- If MODE value is OP_TOGSET
-   ○ Then if sawtooth mode is on ,then if a match happens then the
-   output event is toggled else if event_2
-   happens then output event is high.
+  - Then the output event is toggled when the match event occurs else remains the same.
 
-   ○ If sawtooth mode is off,then if match event happens and event_2
-   doesn't happen then output event is toggle and event_2 is made high
-   ,else if match event happens and event_2 also happens then output
-   event is made high and event_2 is also made low.
+- If COMP_OP value is 3'b100 (OP_RST)
 
-- If MODE value is OP_RSTSET
-    ○ Then if sawtooth mode is on ,then if a match happens then the
-    output event is low else if event_2 happens then output event is
-    high.
+  - Then the output event is made low when the match event occurs else remains the same.
 
-    ○ If sawtooth mode is off,then if match event happens and event_2
-    doesn't happen then output event is made low and event_2 is made
-    high.,else if match event happens and event_2 also happens then the
-    output event is made high and event_2 is also made low.
+- If COMP_OP value is 3'b101 (OP_TOGSET)
 
-- By default the output event remains the same (state remains same
-  until further change in input) and event_2 is kept low.
+  - Then if sawtooth mode is on ,then if a match happens then the output event is toggled else if event_2 happens then output event is high.
 
+  - If sawtooth mode is off,then if match event happens and event_2 doesn't happen then output event is toggle and event_2 is made high ,else if match event happens and event_2 also happens then output event is made high and event_2 is also made low.
+
+- If COMP_OP value is 3'b110 (OP_RSTSET)
+
+  - Then if sawtooth mode is on ,then if a match happens then the output event is low else if event_2 happens then output event is high.
+
+  - If sawtooth mode is off,then if match event happens and event_2 doesn't happen then output event is made low and event_2 is made high.,else if match event happens and event_2 also happens then the output event is made high and event_2 is also made low.
+
+- By default the output event remains the same (state remains same until further change in input) and event_2 is kept low.
+- The output event is set to 0. When either the hard reset is triggered or controlelr reset is '1'.
 
 APB ADVANCED CSRs
 -----------------
@@ -321,7 +322,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - UPDOWNSEL
+   * - SAWTOOTH
      - 12:12
      - Config
      - R/W
@@ -440,16 +441,16 @@ APB ADVANCED CSRs
      - Type
      - Access
      - Description
-   * - TH_HI
+   * - COUNT_END
      - 31:16
      - Config
      - R/W
-     - Threshold high part configuration bitfield
-   * - TH_LO
+     - End value for the updown counter 
+   * - COUNT_START
      - 15:0
      - Config
      - R/W
-     - Threshold low part configuration bitfield
+     - Start value for the updown counter 
 
 ..
 
@@ -469,7 +470,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -509,7 +510,7 @@ APB ADVANCED CSRs
      -
      -
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -533,7 +534,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -573,7 +574,7 @@ APB ADVANCED CSRs
      -
      -
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -597,7 +598,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -637,7 +638,7 @@ APB ADVANCED CSRs
      -
      -    
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -661,7 +662,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -701,7 +702,7 @@ APB ADVANCED CSRs
      -
      -     
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -914,7 +915,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - UPDOWNSEL
+   * - SAWTOOTH
      - 12:12
      - Config
      - R/W
@@ -1033,16 +1034,16 @@ APB ADVANCED CSRs
      - Type
      - Access
      - Description
-   * - TH_HI
+   * - COUNT_END
      - 31:16
      - Config
      - R/W
-     - Threshold high part configuration bitfield
-   * - TH_LO
+     - End value for the updown counter 
+   * - COUNT_START
      - 15:0
      - Config
      - R/W
-     - Threshold low part configuration bitfield
+     - Start value for the updown counter 
 
 ..
 
@@ -1062,7 +1063,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -1102,7 +1103,7 @@ APB ADVANCED CSRs
      -
      -
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -1126,7 +1127,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -1166,7 +1167,7 @@ APB ADVANCED CSRs
      -
      -
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -1190,7 +1191,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -1230,7 +1231,7 @@ APB ADVANCED CSRs
      -
      -    
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -1254,7 +1255,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -1294,7 +1295,7 @@ APB ADVANCED CSRs
      -
      -     
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -1507,7 +1508,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - UPDOWNSEL
+   * - SAWTOOTH
      - 12:12
      - Config
      - R/W
@@ -1626,16 +1627,16 @@ APB ADVANCED CSRs
      - Type
      - Access
      - Description
-   * - TH_HI
+   * - COUNT_END
      - 31:16
      - Config
      - R/W
-     - Threshold high part configuration bitfield
-   * - TH_LO
+     - End value for the updown counter 
+   * - COUNT_START
      - 15:0
      - Config
      - R/W
-     - Threshold low part configuration bitfield
+     - Start value for the updown counter 
 
 ..
 
@@ -1655,7 +1656,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -1695,7 +1696,7 @@ APB ADVANCED CSRs
      -
      -
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -1719,7 +1720,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -1759,7 +1760,7 @@ APB ADVANCED CSRs
      -
      -
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -1783,7 +1784,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -1823,7 +1824,7 @@ APB ADVANCED CSRs
      -
      -    
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -1847,7 +1848,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -1887,7 +1888,7 @@ APB ADVANCED CSRs
      -
      -     
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -2099,7 +2100,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - UPDOWNSEL
+   * - SAWTOOTH
      - 12:12
      - Config
      - R/W
@@ -2218,16 +2219,16 @@ APB ADVANCED CSRs
      - Type
      - Access
      - Description
-   * - TH_HI
+   * - COUNT_END
      - 31:16
      - Config
      - R/W
-     - Threshold high part configuration bitfield
-   * - TH_LO
+     - End value for the updown counter 
+   * - COUNT_START
      - 15:0
      - Config
      - R/W
-     - Threshold low part configuration bitfield
+     - Start value for the updown counter 
 
 ..
 
@@ -2247,7 +2248,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -2287,7 +2288,7 @@ APB ADVANCED CSRs
      -
      -
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -2311,7 +2312,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -2351,7 +2352,7 @@ APB ADVANCED CSRs
      -
      -
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -2375,7 +2376,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -2415,7 +2416,7 @@ APB ADVANCED CSRs
      -
      -    
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -2439,7 +2440,7 @@ APB ADVANCED CSRs
      - 
      - 
      - 
-   * - MODE
+   * - COMP_OP
      - 18:16
      - Config
      - R/W
@@ -2479,7 +2480,7 @@ APB ADVANCED CSRs
      -
      -     
      - 3’h6: Clear then next threshold match action is set
-   * - TH
+   * - COMP_THRESHOLD
      - 15:0
      - Config
      - R/W
@@ -2667,7 +2668,7 @@ APB ADVANCED CSRs
 
 ..
 
-**REG_TIM3_COUNTER** offset=0x0EC
+**REG_CH_EN** offset=0x104
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -2691,3 +2692,89 @@ APB ADVANCED CSRs
 
 ..  
 
+Firmware Guidelines
+-------------------
+
+Initialization:
+~~~~~~~~~~~~~~~
+- When the HRESETn signal is low, registers default to 0 and outputs are low.
+- Four timer modules have four clock gates which will be enabled(meaning passes the ref clock to respective timer module). only when either dft_cg_enable_i is high or the bit in respective position of REG_CH_EN register is high(0th bit for timer_0,1st bit for timer_1,etc).
+- At every positive edge of the clock the CSR registers are updated based on APB signals.
+- FW can update the below bitfields to any custom value before START bitfield in the REG_TIM0_CMD register is set to '1' and the timer is not active yet (which means the timer is started for the first time. Otherwise, all the config values of all sub-modules are commanded to be updated to default .
+
+  - The COUNT_START start value of the up down counter
+
+  - The COUNT_END value of the up down counter
+
+  - The direction of the up down counter(default is 0) 
+
+  - The SAWTOOTH mode of the up down counter
+
+  - The T3_COUNTER value of the up down counter 
+
+  - The PRESC, MODE and INSEL register values. 
+
+  - For each channel the COMP_THRESHOLD and COMP_OP values
+
+  - Here,The general update of all the config happens in sync with the positive edge of the clock but the configuration of the up down counter (COUNT_START,COUNT_END, direction and SAWTOOTH are updated immediately). 
+
+PWM generation:
+~~~~~~~~~~~~~~~
+- FW initialization is performed and the external input/stimulus ext_sig_i is provided.
+- For each Timer module, at every positive edge of the selected clock and when the timer is active, the following operation is performed.
+
+  - Input stage consumes 32 bit ext_sig_i and processes it accordinly based on CLKSEL, INSEL and MODE. Event signal is generated as per the working of input stage.
+
+  - The Event signal generated in the input stage is scaled to output scaled event based on the prescaler value by Prescaler sub module.
+
+  - The above output scaled events generated go to the up down counter.
+
+  - Depending on various FW configurations of SAWTOOTH, COUNT_START and COUNT_END. The counter value, end event and the output event are generated in the updown counter and are provided as input to the 4 comparators.
+
+  - In each of the Comparator, counter value is compared against the COMP_THRESHOLD and 1 bit PWM is generated based on COMP_OP.
+
+  - 4 Comparator submodules generate 4 bit PWM signal
+
+  - This above process is repeated with respect to change in the FW configurations to generate the PWM signal.
+
+- APB_ADVANCED_TIMER has 4 Timer modules which can generate 4 independent 4-bit PWMs
+- Apart from the PWM signal, APB_ADVANCED_TIMER also generates output events based on the OUT_SEL_EVT_ENABLE and OUT_SEL_EVT1 bitfiels of REG_EVENT_CFG register.
+- Note: How each of the sub module works and generates these output is already discussed in the Architecture.
+
+Pin Diagram
+-----------
+
+The figure below represents the input and output pins for the APB Advanced Timer:-
+
+.. figure:: apb_adv_timer_pin_diagram.png
+   :name: APB_Advanced_Timer_Pin_Diagram
+   :align: center
+   :alt:
+   
+   APB Advanced Timer Pin Diagram
+
+Clock and Reset Signals
+~~~~~~~~~~~~~~~~~~~~~~~
+  - HCLK: System clock input
+  - HRESETn: Active-low reset input
+
+APB Interface Signals
+~~~~~~~~~~~~~~~~~~~~~
+  - PADDR[11:0]: APB address bus input
+  - PSEL: APB peripheral select input
+  - PENABLE: APB enable input
+  - PWRITE: APB write control input (high for write, low for read)
+  - PWDATA[31:0]: APB write data bus input
+  - PREADY: APB ready output to indicate transfer completion
+  - PRDATA[31:0]: APB read data bus output
+
+APB Advanced Timer Interface Signals
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  - df_cg_enable_i: clock gate enable input
+  - low_speed_clk_i: Low speed external clock input
+  - ext_sig_i[31:0]: 32 bit GPIO input
+  - events_o[3:0]: Output events from all the 4 timers
+  - ch_0_o[3:0]: PWM output from Timer 0
+  - ch_1_o[3:0]: PWM output from Timer 1
+  - ch_2_o[3:0]: PWM output from Timer 2
+  - ch_3_o[3:0]: PWM output from Timer 3
