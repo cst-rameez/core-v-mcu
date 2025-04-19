@@ -35,7 +35,7 @@ Features
 - Configurable input trigger modes for each timer
 - Configurable prescaler for each timer
 - Configurable counting mode for each timer
-- Configurable channel comapartor threshold and comapartor operyion for each timer
+- Configurable channel comapartor threshold and comapartor operation for each timer
 - Four configurable output events
 - Configurable clock gating of each timer
 
@@ -44,22 +44,37 @@ Architecture
 
 The figure below is a high-level block diagram of the APB Advanced Timer module:-
 
-.. figure:: apb_adv_timer_image1.png
+.. figure:: apb_adv_timer_block_diagram.png
    :name: APB_ADVANCED_TIMER_Block_Diagram
    :align: center
    :alt:
 
    APB ADVANCED TIMER Block Diagram
 
+The figure below depicts the connections between the APB ADVANCED TIMER and rest of the modules in Core-V-MCU:-
+
+.. figure:: apb_adv_timer_soc_connections.png
+   :name: APB_ADVANCED_TIMER_SoC_Connections
+   :align: center
+   :alt:
+
+   APB ADVANCED TIMER Core-V-MCU connections diagram
+
+- The ext_sig_i input to the APB_ADVANCED_TIMER is directly connected to the APB_GPIO. 
+- APB_ADVANCED_TIMER process this input signals based on the various register configurations.
+- APB_ADVANCED_TIMER generate few output event signals that are further parsed as interrupts to the Core/CPU.
+- APB_ADVANCED_TIMER generates PWM outputs which are parsed to the external devices through I/O mux.
+
+
 The APB ADVANCED TIMER IP consists of the following key components:
-APB control logic, APB ADVANCED TIMER Registers and 4 Timer modules
+APB control logic, APB ADVANCED TIMER CSRs and 4 Timer modules
 
 APB control logic
 ~~~~~~~~~~~~~~~~~
 The APB control logic interfaces with the APB bus to decode and execute commands.
 It handles register reads and writes according to the APB protocol, providing a standardized interface to the system.
 
-APB ADVANCED TIMER Registers
+APB ADVANCED TIMER CSRs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 - There are few common registers that store the following configurations.
 
@@ -76,19 +91,19 @@ APB ADVANCED TIMER Registers
 
 Timer Module
 ~~~~~~~~~~~~
-.. figure:: apb_adv_timer_image2.png
+.. figure:: apb_adv_timer_diagram_1.png
    :name: TIMER_Block_Diagram
    :align: center
    :alt:
 
    TIMER Block Diagram
 
-Data flow:
-^^^^^^^^^^^
+Introduction
+^^^^^^^^^^^^^
 - Timer module has various submodules/components like Timer Controller, Input stage, Prescalar, Updown counter and Comparators.
 - Timer controller manages all the other submodules through few control signals like active, controller reset and update.
 - FW performs Initialization and drives various configuration register. 
-- TImer module's main objective is to generate PWM signal for the external input/stimulus provided.
+- Timer module's main objective is to generate PWM signal based on the external input/stimulus provided.
 - In order to generate the PWM, the data flows through the following submodules which can also be seen TIMER Block diagram.
   
   - **(ext_sig_i )** -> input stage -> prescaler ->updown counter ->comparators -> **(PWM)**
@@ -96,13 +111,20 @@ Data flow:
 
 Timer Controller
 ^^^^^^^^^^^^^^^^
-- Timer controller generates active signal. 
+- Timer controller generates few important signals like active, update and reset. It parses and controls other sub modules through these signals. 
 
-  -  The active signal is '1' when the START bitfield is '1' in the REG_TIM0_CMD register.
+  -  active signal: It is a control signal through which a sub module can either enable or disable its operations.
+  -  update signal: It informs the sub module when to update the latest configured register values in order to perform their operations.
+  -  reset signal: It resets the sub modules.
 
-  -  The active signal is '0' when the START bitfield is '0' and STOP bitfield is '1' in the REG_TIM0_CMD register. 
+- The active signal is driven by a different a value in the following conditions. 
 
-- Timer controller generates update and controller reset signals, update siganl is driven by the value UPDATE bitfield and controller reset siganl is driven by the value RESET bitfield to all sub modules in the following conditions
+  -  The active signal is driven by value '1', when the START bitfield is '1' in the REG_TIM0_CMD register.
+
+  -  The active signal is driven by value '0'. when the START bitfield is '0' and STOP bitfield is '1' in the REG_TIM0_CMD register. 
+
+- The update signal is always driven by the value UPDATE bitfield in the REG_TIM0_CMD register and controller reset signal is driven by the value RESET bitfield in the REG_TIM0_CMD register. 
+- These signals are parsed to all sub modules in the following conditions
 
   - if START bitfield is 0 in the REG_TIM0_CMD register.
 
@@ -110,9 +132,10 @@ Timer Controller
 
 Input Stage
 ^^^^^^^^^^^
+- Input stage receives the ext_sig_i and based on register configurations, it selects the clock, input pin and operating mode to generate the output event signal.  
 - Input stage uses the bitfield INSEL in REG_TIM0_CFG register and selects a signal from a set of signals in ext_sig_i.
 - Input stage uses the bitfield CLKSEL in REG_TIM0_CFG register and decides whether the input will be either in sync with the rising edge of the low_speed_clk_i or in sync with the ref clock.
-- At every positive edge of the selected clock and selected input signal, Input stage uses the bitfield MODE in REG_TIM0_CFG register to generate output signal according to the below information.
+- At every positive edge of the selected clock and selected input signal, Input stage uses the bitfield MODE in REG_TIM0_CFG register to generate output event signal according to the below information.
 
   - If MODE is 3’b000
 
@@ -132,7 +155,7 @@ Input Stage
 
   - If MODE is 3’b100
 
-    - The output event is sensitive to the rising edge of the selected signal in sync with the clock.
+    - The output event is sensitive to the falling edge of the selected signal in sync with the clock.
 
   - If MODE is 3’b101
 
@@ -148,8 +171,9 @@ Input Stage
 
 Prescalar
 ^^^^^^^^^
+- Prescaler scales down the high frequency input signal to low frequency output signal by using the prescaler value. 
 - The PRESC bitfield in the REG_TIM0_CFG register is parsed to Prescaler. 
-- The Event signal generated in the previous input stage is scaled based on the PRESC value.
+- The output event signal generated in the previous input stage is scaled based on the PRESC value.
 - Prescaler module maintains a internal counter whose initial value is 0. At every positive edge of the clock, counter gets incremented by '1' when event input signal is '1' and Timer is active.
 - When the internal counter value matches with the PRESC bitfield output event is set to '1' and the counter is updated to '0'. The above process continues and output events are generated.
 - Whenever the lock synced events generated is equal to PRESC value then one output event is generated at positive edge of the clock(the frequency is scaled according to the PRESC register value).
@@ -157,6 +181,7 @@ Prescalar
 
 Updown counter
 ^^^^^^^^^^^^^^
+- Updown counter manages the timer counter values based on register configurations and generates few output events.
 - The output event generated from prescaler sub module is provided as the input for the updown counter and it is processed further.
 - The active, controller reset and update signals are provided by the Timer controller.  
 - Updown counter maintains a counter and direction(0- up and 1- down).
@@ -177,7 +202,7 @@ Updown counter
 
     - Now, an end event is generated. this process is repeated to generate multiple end events.
 
-- Re-Initialization of the Updown counter can be done in the following scenraios.
+- Re-Initialization of the Updown counter can be done in the following scenarios.
 
   - Change in update signal: 
 
@@ -185,74 +210,167 @@ Updown counter
 
     - When an end event is generated and if the update signal is '1'. 
 
-    - if update signal is '1' and above two conditions are not met. upcounter counter is initialized for the next end event generation irrespective of update signal value at that instance of time. 
+    - if update signal is '1' and above two conditions for the change in update signal are not met. upcounter counter is initialized for the next end event generation irrespective of update signal value at that instance of time. 
 
   - Change in reset signal: 
 
     - When the controller reset signal is '1'. 
 
-- At every positive edge of the clock, if the active siganl is '1' then output event is driven by the value of output event generated from prescaler.
+- At every positive edge of the clock, if the active signal is '1' then output event is driven by the value of output event generated from prescaler.
 - At every positive edge of the clock, The counter value is updated in the REG_TIM0_COUNTER.
 - If the hard reset is '0', then the all the register and internal meta data is set to the reset values.
 
 Comparator
 ^^^^^^^^^^
+- Each timer has 4 comparators that can act independently and each comapartor generates a 1 bit PWM output.
+- Comparator comapres the timer counter value with compare value and based on register configurations of output mode generates a PWM output.
 - The counter value, end event and the output event generated in the updown counter are provided as input to the comparator. 
 - The active, controller reset and update signals are provided by the Timer controller.
 - COMP_THRESHOLD and COMP_OP can only be updated and used by the comparator. when the update signal is '1'. 
-- At every positive edge of the clock, when the output event coming out of the up down counter is '1' and active sigan is '1'. Compartor checks for the two events that can happen, 
+- At every positive edge of the clock, when the output event coming out of the up down counter is '1' and active signal is '1', comparator checks for the following two internal events that can happen, 
 
-  - **(match event)** is set to '1' when timer counter value reaches the comparator offset 
+  - **(match_event)** is set to '1' when timer counter value reaches the comparator offset 
 
   - **(event_2)** set to '1' in the following two scenarios:
 
-    - When the SAWTOOTH register is '1' and end event is '1'.
+    - When the SAWTOOTH bitfield is '1' and end event is '1'.
 
-    - When SAWTOOTH is low and the timer counter value reaches the COMP_THRESHOLD. 
+    - When SAWTOOTH is bitfield is '0' and the timer counter value reaches the COMP_THRESHOLD. 
 
-- Then, based on the match_event, event_2 and COMP_OP value, PWM output event is generated accordingly.
+- Then, based on the match_event, event_2 and COMP_OP value, PWM output is generated accordingly.
 
 - If COMP_OP value is 3'b000 (OP_SET) 
-
-  - Then the output event is high when there is a match otherwise remains the same.
+  
+  - If a match_event is high
+  
+    - The PWM output is made high
+  
+  - If a match_event is low
+  
+    - The PWM output remains the same.
 
 - If COMP_OP value is 3'b001 (OP_TOGRST)
   
-  - Then if sawtooth mode is on ,then if a match happens then the output event is toggled else if event_2 happens then output event is low.
+  - When Sawtooth Mode is ON
 
-  - If sawtooth mode is off,then if match event happens and event_2 doesn't happen then output event is toggle and event_2 is made high ,else if match event happens and event_2 also happens then output event is made low and event_2 is also made low.
+    - If a match_event is high
+
+      - The PWM output is made toggled.
+    
+    - If event_2 is high 
+    
+      - The PWM output is made low.
+
+  - When Sawtooth Mode is OFF
+
+    - If match_event is high and event_2 is low
+
+      - The PWM output is toggled.
+      - event_2 is made high.
+
+    - If match_event is high and event_2 is high
+    
+      - The PWM output is made low
+      - event_2 is made low.
 
 - If COMP_OP value is 3'b010 (OP_SETRST)
 
-  - Then if sawtooth mode is on ,then if a match happens then the output event is high else if event_2 happens then output event is low.
+  - When Sawtooth Mode is ON
 
-  - If sawtooth mode is off,then if match event happens and event_2 doesn't happen then output event is made high and event_2 is made high.,else if match event happens and event_2 also happens then output event is made low and event_2 is also made low.
+    - If a match_event is high 
+  
+      - the PWM output is made high
+  
+    - If event_2 is high
+  
+      - then PWM output is made low.
+
+  - When Sawtooth Mode is OFF
+    
+    - If match_event is high and event_2 is low
+    
+      - The PWM output is made high
+      - event_2 is made high.
+    
+    - If match_event is high and event_2 also is high
+    
+      - PWM output is made low
+      - event_2 is made low.
 
 - If COMP_OP value is 3'b011 (OP_TOG) 
 
-  - Then the output event is toggled when the match event occurs else remains the same.
+  - If a match_event is high
+  
+    - The PWM output is toggled
+  
+  - If a match_event is low
+  
+    - The PWM output remains the same.
 
 - If COMP_OP value is 3'b100 (OP_RST)
 
-  - Then the output event is made low when the match event occurs else remains the same.
+  - If a match_event is high
+  
+    - The PWM output is made low
+  
+  - If a match_event is low
+  
+    - The PWM output remains the same.
+
 
 - If COMP_OP value is 3'b101 (OP_TOGSET)
 
-  - Then if sawtooth mode is on ,then if a match happens then the output event is toggled else if event_2 happens then output event is high.
+  - When Sawtooth Mode is ON
 
-  - If sawtooth mode is off,then if match event happens and event_2 doesn't happen then output event is toggle and event_2 is made high ,else if match event happens and event_2 also happens then output event is made high and event_2 is also made low.
+    - If a match_event is high
+  
+      - The PWM output is toggled
+  
+    - If event_2 is high
+  
+      - then PWM output is made high.
+
+  - When Sawtooth Mode is OFF
+  
+    - If match_event is high and event_2 is low
+  
+      - The PWM output is toggled
+      - event_2 is made high
+  
+    - If match_event is high and event_2 also is high
+  
+      - The PWM output is made high
+      - event_2 is made low
 
 - If COMP_OP value is 3'b110 (OP_RSTSET)
 
-  - Then if sawtooth mode is on ,then if a match happens then the output event is low else if event_2 happens then output event is high.
+  - When Sawtooth Mode is ON
+  
+    - If a match_event is high
+  
+      - The PWM output is made low
+  
+    - If event_2 is high
+  
+      - The PWM output is made high
 
-  - If sawtooth mode is off,then if match event happens and event_2 doesn't happen then output event is made low and event_2 is made high.,else if match event happens and event_2 also happens then the output event is made high and event_2 is also made low.
+  - When Sawtooth Mode is OFF
+  
+    - If match_event is high and event_2 is low
+  
+      - The PWM output is made low
+      - event_2 is made high
+  
+    - If match_event is high and event_2 also is high
+  
+      - The PWM output is made high
+      - event_2 is made low.
 
-- By default the output event remains the same (state remains same until further change in input) and event_2 is kept low.
-- The output event is set to 0. When either the hard reset is triggered or controlelr reset is '1'.
+- By default the PWM output remains the same (state remains same until further change in input) and event_2 is kept low.
+- The PWM output is set to 0. When either the hard reset is triggered or controlelr reset is '1'.
 
-APB ADVANCED CSRs
------------------
+APB ADVANCED TIMER CSRs
+-----------------------
 **REG_TIM0_CMD** offset=0x000
 
 .. list-table::
@@ -272,27 +390,27 @@ APB ADVANCED CSRs
    * - ARM
      - 4:4
      - Config
-     - R/W
+     - RW
      - arm command bitfield
    * - RESET
      - 3:3
      - Config
-     - R/W
+     - RW
      - reset command bitfield
    * - UPDATE
      - 2:2
      - Config
-     - R/W
+     - RW
      - update command bitfield
    * - STOP
      - 1:1
      - Config
-     - R/W
+     - RW
      - Stop command field
    * - START
      - 0:0
      - Config
-     - R/W
+     - RW
      - Start command field
 ..
 
@@ -315,7 +433,7 @@ APB ADVANCED CSRs
    * - PRESC
      - 23:16
      - Config
-     - R/W
+     - RW
      - prescaler value configuration bitfield
    * - Reserved
      - 15:13
@@ -325,7 +443,7 @@ APB ADVANCED CSRs
    * - SAWTOOTH
      - 12:12
      - Config
-     - R/W
+     - RW
      - center-aligned mode configuration bitfield
    * -
      -
@@ -340,7 +458,7 @@ APB ADVANCED CSRs
    * - CLKSEL
      - 11:11
      - Config
-     - R/W
+     - RW
      - clock source configuration bitfield
    * -
      -
@@ -355,7 +473,7 @@ APB ADVANCED CSRs
    * - MODE
      - 10:8
      - Config
-     - R/W
+     - RW
      - trigger mode configuration bitfield
    * -
      -
@@ -400,7 +518,7 @@ APB ADVANCED CSRs
    * - INSEL
      - 7:0
      - Config
-     - R/W
+     - RW
      - input source configuration bitfield
    * -
      -
@@ -444,12 +562,12 @@ APB ADVANCED CSRs
    * - COUNT_END
      - 31:16
      - Config
-     - R/W
+     - RW
      - End value for the updown counter 
    * - COUNT_START
      - 15:0
      - Config
-     - R/W
+     - RW
      - Start value for the updown counter 
 
 ..
@@ -473,7 +591,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 0 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -513,7 +631,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 0 threshold configuration bitfield
 
 ..
@@ -537,7 +655,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 1 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -577,7 +695,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 1 threshold configuration bitfield
 
 ..
@@ -601,7 +719,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 2 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -641,7 +759,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 2 threshold configuration bitfield
 
 ..
@@ -665,7 +783,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 3 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -705,7 +823,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 3 threshold configuration bitfield
 
 ..
@@ -729,12 +847,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -758,12 +876,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -788,12 +906,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -817,12 +935,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -865,27 +983,27 @@ APB ADVANCED CSRs
    * - ARM
      - 4:4
      - Config
-     - R/W
+     - RW
      - arm command bitfield
    * - RESET
      - 3:3
      - Config
-     - R/W
+     - RW
      - reset command bitfield
    * - UPDATE
      - 2:2
      - Config
-     - R/W
+     - RW
      - update command bitfield
    * - STOP
      - 1:1
      - Config
-     - R/W
+     - RW
      - Stop command field
    * - START
      - 0:0
      - Config
-     - R/W
+     - RW
      - Start command field
 ..
 
@@ -908,7 +1026,7 @@ APB ADVANCED CSRs
    * - PRESC
      - 23:16
      - Config
-     - R/W
+     - RW
      - prescaler value configuration bitfield
    * - Reserved
      - 15:13
@@ -918,7 +1036,7 @@ APB ADVANCED CSRs
    * - SAWTOOTH
      - 12:12
      - Config
-     - R/W
+     - RW
      - center-aligned mode configuration bitfield
    * -
      -
@@ -933,7 +1051,7 @@ APB ADVANCED CSRs
    * - CLKSEL
      - 11:11
      - Config
-     - R/W
+     - RW
      - clock source configuration bitfield
    * -
      -
@@ -948,7 +1066,7 @@ APB ADVANCED CSRs
    * - MODE
      - 10:8
      - Config
-     - R/W
+     - RW
      - trigger mode configuration bitfield
    * -
      -
@@ -993,7 +1111,7 @@ APB ADVANCED CSRs
    * - INSEL
      - 7:0
      - Config
-     - R/W
+     - RW
      - input source configuration bitfield
    * -
      -
@@ -1037,12 +1155,12 @@ APB ADVANCED CSRs
    * - COUNT_END
      - 31:16
      - Config
-     - R/W
+     - RW
      - End value for the updown counter 
    * - COUNT_START
      - 15:0
      - Config
-     - R/W
+     - RW
      - Start value for the updown counter 
 
 ..
@@ -1066,7 +1184,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 0 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -1106,7 +1224,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 0 threshold configuration bitfield
 
 ..
@@ -1130,7 +1248,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 1 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -1170,7 +1288,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 1 threshold configuration bitfield
 
 ..
@@ -1194,7 +1312,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 2 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -1234,7 +1352,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 2 threshold configuration bitfield
 
 ..
@@ -1258,7 +1376,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 3 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -1298,7 +1416,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 3 threshold configuration bitfield
 
 ..
@@ -1322,12 +1440,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -1351,12 +1469,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -1381,12 +1499,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -1410,12 +1528,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -1458,27 +1576,27 @@ APB ADVANCED CSRs
    * - ARM
      - 4:4
      - Config
-     - R/W
+     - RW
      - arm command bitfield
    * - RESET
      - 3:3
      - Config
-     - R/W
+     - RW
      - reset command bitfield
    * - UPDATE
      - 2:2
      - Config
-     - R/W
+     - RW
      - update command bitfield
    * - STOP
      - 1:1
      - Config
-     - R/W
+     - RW
      - Stop command field
    * - START
      - 0:0
      - Config
-     - R/W
+     - RW
      - Start command field
 ..
 
@@ -1501,7 +1619,7 @@ APB ADVANCED CSRs
    * - PRESC
      - 23:16
      - Config
-     - R/W
+     - RW
      - prescaler value configuration bitfield
    * - Reserved
      - 15:13
@@ -1511,7 +1629,7 @@ APB ADVANCED CSRs
    * - SAWTOOTH
      - 12:12
      - Config
-     - R/W
+     - RW
      - center-aligned mode configuration bitfield
    * -
      -
@@ -1526,7 +1644,7 @@ APB ADVANCED CSRs
    * - CLKSEL
      - 11:11
      - Config
-     - R/W
+     - RW
      - clock source configuration bitfield
    * -
      -
@@ -1541,7 +1659,7 @@ APB ADVANCED CSRs
    * - MODE
      - 10:8
      - Config
-     - R/W
+     - RW
      - trigger mode configuration bitfield
    * -
      -
@@ -1586,7 +1704,7 @@ APB ADVANCED CSRs
    * - INSEL
      - 7:0
      - Config
-     - R/W
+     - RW
      - input source configuration bitfield
    * -
      -
@@ -1630,12 +1748,12 @@ APB ADVANCED CSRs
    * - COUNT_END
      - 31:16
      - Config
-     - R/W
+     - RW
      - End value for the updown counter 
    * - COUNT_START
      - 15:0
      - Config
-     - R/W
+     - RW
      - Start value for the updown counter 
 
 ..
@@ -1659,7 +1777,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 0 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -1699,7 +1817,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 0 threshold configuration bitfield
 
 ..
@@ -1723,7 +1841,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 1 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -1763,7 +1881,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 1 threshold configuration bitfield
 
 ..
@@ -1787,7 +1905,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 2 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -1827,7 +1945,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 2 threshold configuration bitfield
 
 ..
@@ -1851,7 +1969,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 3 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -1891,7 +2009,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 3 threshold configuration bitfield
 
 ..
@@ -1915,12 +2033,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -1944,12 +2062,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -1974,12 +2092,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -2003,12 +2121,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -2050,27 +2168,27 @@ APB ADVANCED CSRs
    * - ARM
      - 4:4
      - Config
-     - R/W
+     - RW
      - arm command bitfield
    * - RESET
      - 3:3
      - Config
-     - R/W
+     - RW
      - reset command bitfield
    * - UPDATE
      - 2:2
      - Config
-     - R/W
+     - RW
      - update command bitfield
    * - STOP
      - 1:1
      - Config
-     - R/W
+     - RW
      - Stop command field
    * - START
      - 0:0
      - Config
-     - R/W
+     - RW
      - Start command field
 ..
 
@@ -2093,7 +2211,7 @@ APB ADVANCED CSRs
    * - PRESC
      - 23:16
      - Config
-     - R/W
+     - RW
      - prescaler value configuration bitfield
    * - Reserved
      - 15:13
@@ -2103,7 +2221,7 @@ APB ADVANCED CSRs
    * - SAWTOOTH
      - 12:12
      - Config
-     - R/W
+     - RW
      - center-aligned mode configuration bitfield
    * -
      -
@@ -2118,7 +2236,7 @@ APB ADVANCED CSRs
    * - CLKSEL
      - 11:11
      - Config
-     - R/W
+     - RW
      - clock source configuration bitfield
    * -
      -
@@ -2133,7 +2251,7 @@ APB ADVANCED CSRs
    * - MODE
      - 10:8
      - Config
-     - R/W
+     - RW
      - trigger mode configuration bitfield
    * -
      -
@@ -2178,7 +2296,7 @@ APB ADVANCED CSRs
    * - INSEL
      - 7:0
      - Config
-     - R/W
+     - RW
      - input source configuration bitfield
    * -
      -
@@ -2222,12 +2340,12 @@ APB ADVANCED CSRs
    * - COUNT_END
      - 31:16
      - Config
-     - R/W
+     - RW
      - End value for the updown counter 
    * - COUNT_START
      - 15:0
      - Config
-     - R/W
+     - RW
      - Start value for the updown counter 
 
 ..
@@ -2251,7 +2369,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 0 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -2291,7 +2409,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 0 threshold configuration bitfield
 
 ..
@@ -2315,7 +2433,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 1 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -2355,7 +2473,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 1 threshold configuration bitfield
 
 ..
@@ -2379,7 +2497,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 2 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -2419,7 +2537,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 2 threshold configuration bitfield
 
 ..
@@ -2443,7 +2561,7 @@ APB ADVANCED CSRs
    * - COMP_OP
      - 18:16
      - Config
-     - R/W
+     - RW
      - Channel 3 threshold match action on channel output signal configuration bitfield
    * -
      -
@@ -2483,7 +2601,7 @@ APB ADVANCED CSRs
    * - COMP_THRESHOLD
      - 15:0
      - Config
-     - R/W
+     - RW
      - Channel 3 threshold configuration bitfield
 
 ..
@@ -2507,12 +2625,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -2536,12 +2654,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -2566,12 +2684,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -2595,12 +2713,12 @@ APB ADVANCED CSRs
    * - FLT
      - 23:16
      - Config
-     - R/W
+     - RW
      - FLT
    * - LUT
      - 15:0
      - Config
-     - R/W
+     - RW
      - LUT
 
 ..
@@ -2643,27 +2761,27 @@ APB ADVANCED CSRs
    * - OUT_SEL_EVT_ENABLE
      - 19:16
      - Config
-     - R/W
+     - RW
      - Output event select ENABLE
    * - OUT_SEL_EVT3
      - 15:12
      - Config
-     - R/W
+     - RW
      - Output event select 3
    * - OUT_SEL_EVT2
      - 11:8
      - Config
-     - R/W
+     - RW
      - Output event select 2
    * - OUT_SEL_EVT1
      - 7:4
      - Config
-     - R/W
+     - RW
      - Output event select 1
    * - OUT_SEL_EVT0
      - 3:0
      - Config
-     - R/W
+     - RW
      - Output event select 0
 
 ..
@@ -2687,7 +2805,7 @@ APB ADVANCED CSRs
    * - CLK_ENABLE
      - 3:0
      - Status
-     - R/W
+     - RW
      - Each bit acts as clock enable for each timer. For eg: if 2nd bit is set Timer 2 clock is enabled. 
 
 ..  

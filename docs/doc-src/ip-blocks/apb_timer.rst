@@ -17,14 +17,13 @@
    ^^^^^^^
 .. _apb_timer:
 
-**APB Timer**
-=============
+APB Timer
+=========
 
-APB Timer supports two 32 bit individual timers with separate interrupt
-lines. APB Timer can also be configured as a 64 bit timer.
+APB Timer supports two 32 bit Timer or one 64 bit Timer. Core-V-MCU can configure the APB_Timer to genrate output interrupts after N number of clock cyles.
 
-**Features**
-
+Features
+---------
 -  Multiple trigger input sources
 
 -  Configurable 32 bit or 64 bit timer
@@ -35,8 +34,8 @@ lines. APB Timer can also be configured as a 64 bit timer.
 
 -  Configurable clock gating for each timer
 
-**Theory of Operation**
------------------------
+Architecture
+------------
 
 Block Diagram of APB_Timer:
 
@@ -44,23 +43,111 @@ Block Diagram of APB_Timer:
    :width: 5in
    :height: 2.38889in
 
-| APB_Timer can be configured in various modes like 32 bit mode or 64 bit mode.
+- The APB TIMER consists of the following key components:
+- APB control logic, APB TIMER CSRs, 2 Prescalers and 2 Timers.
+- A 64 bit Timer can be configured that generates a single output interrupt or 2 Independent 32 bit Timers can be configured to generate 2 independent output interrupts.
 
-**32 bit mode timer:**
+APB control logic
+~~~~~~~~~~~~~~~~~
+The APB control logic interfaces with the APB bus to decode and execute commands.
+It handles register reads and writes according to the APB protocol, providing a standardized interface to the system.
 
--  It supports 32 bit timer_low and 32 bit timer_high and they can be configured parallelly at the same time.
+APB TIMER CSRs
+~~~~~~~~~~~~~~~
 
--  timer low which has a 32 bit prescaler and 32 bit counter which will have unique input_lo and output_lo pins.
+- APB TIMER registers store the configuration for each 32 bit Timer so that both the timers can work independently 
 
--  timer high which has a 32 bit prescaler and 32 bit counter which will have unique input_hi and output_hi pins.
+  - Mode 64-bit enable, Prescalar count. 
+  - Reference clock enable and Prescalar enable.
+  - One shot mode and Compare clear mode.
+  - Event input enable and Interrupt enable. 
+  - Reset and Enable. 
 
-**64 bit mode timer:**
+Inroduction
+~~~~~~~~~~~~
+- APB Timer has two submodules/components that is Prescaler and Timer.
+- FW performs Initialization and drives various configuration register. 
+- Once start is issued, Timer counts from initial value till it reaches the target value and generates an output interrupt.
+- If the prescaler is also enabled, prescaler and timer works in the cascaded manner. 
+- Only when the prescaler prescaler_target_reached is set to '1', Timer is enabled and the Timer Counter is increemented by '1'.
+- Assusming Initial value of Timer Counter is '0'. then it will reach to N, if prescaler_target_reached is issued N times by the prescaler.
 
--  It supports a single 64 bit timer.
 
--  the 64 bit timer has a 32 bit prescaler and 64 bit counter. The FW has to drive both the high and low input pins
+APB Timer Operations:
+~~~~~~~~~~~~~~~~~~~~~
 
--  The output will be driven in the low pin for 64 bit mode.
+Configurable datawidth of the Timer:
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+- 32 bit timer:
+
+   - if the MODE_64_BIT is set to '0', It supports 32 bit timer_low and 32 bit timer_high. they can be configured parallelly at the same time.
+   - timer low which has a 32 bit prescaler and 32 bit counter which will have unique input_lo and output_lo interrupt pins.
+   - timer high which has a 32 bit prescaler and 32 bit counter which will have unique input_hi and output_hi interrupt pins.
+
+- 64 bit timer:
+
+   - if the MODE_64_BIT is set to '1', It supports a single 64 bit timer.
+   - the 64 bit timer has a 32 bit prescaler and 64 bit counter. The FW has to drive low timer related input pins and registers.
+   - The output interrupt will be driven in the dedicated pins for timer low.
+
+Modes of Timer:
+^^^^^^^^^^^^^^^
+- One shot mode:
+
+   - For 32-bit timer, the timer will be disabled when the timer low count reaches the target count for the first time. Similar operation is done for the timer high.
+   - For 64-bit timer, The timer will be disabled when the timer low count reaches 0xFFFFFFFF and the timer high count reaches target count for the first time.
+
+- Compare clear mode:
+
+   - 32 bit Timer: 
+      - When the the timer count reaches the target count, the timer is not disbaled instead timer count will be reset to '0'. 
+      - As the timer is still enabled, the timer count will be increement by '1' for every positive edge of the clock until it reaches the target count.
+      - The same process is repeated.
+   - 64 bit Timer: 
+      - When the timer low count reaches 0xFFFFFFFF and the timer high count reaches target count, the timer is not disbaled instead timer low count and timer high count will be resetted to '0'. 
+      - As the timer low and timer high are still enabled, the timer low count will be increement by '1' for every positive edge of the clock until timer low count reaches 0xFFFFFFFF and the timer high count reaches target count.
+      - The same process is repeated.  
+
+Control signal for Timer:
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+- APB Timer generates control signals like reset_prescaler, enable_prescaler, reset_timer, enable_timer. 
+
+
+Prescaler
+~~~~~~~~~
+
+- PRESCALER_COUNT and PRESCALER_EN_BIT are parsed to the prescaler.
+- if the ENABLE_BIT and PRESCALER_EN_BIT are set to '1' then Prescaler starts its operation.
+- Prescaler maintains a precaler counter whose initial value is '0'. 
+- if the REF_CLK_EN_BIT is set to '1', then reference clock will be selected else Hclk will be selected.
+- For every positive edge of the selected clock, if PRESCALER_EN_BIT set to '1'
+
+   - precaler counter is incremented by value '1' until it reaches the PRESCALER_COUNT value.
+   - Once the precaler counter reaches PRESCALER_COUNT value and prescaler_target_reached event is set to '1' for one clock cycle.
+   - After one clock cycle, the precaler counter is resetted to 0 and prescaler_target_reached event is set to '0'.
+   - Counters starts incrementing and the same process repeats to generate multiple such events.
+
+- If the RESET_BIT is set to '1' then precaler counter is resetted to '0'.
+- If active low reset HRESETN is set to '0', then precaler counter and prescaler_target_reached event is resetted to '0'.
+- If the active low Stoptimer_i is set to '0', then the prescaler will pause its operation. (i.e the prescaler counter will not be set to '0')
+
+Timer 
+~~~~~
+- TIMER_VAL_LO and ENABLE_BIT are parsed to the timer.
+- Prescaler maintains a precaler counter whose initial value is '0'. 
+- if the REF_CLK_EN_BIT is set to '1', then reference clock will be selected else Hclk will be selected.
+- For every positive edge of the selected clock, if PRESCALER_EN_BIT set to '1'
+
+   - if the ENABLE_BIT and PRESCALER_EN_BIT are set to '1' then Prescaler starts its operation.
+   - precaler counter is incremented by value '1' until it reaches the PRESCALER_COUNT value.
+   - Once the precaler counter reaches PRESCALER_COUNT value and prescaler_target_reached event is set to '1' for one clock cycle.
+   - After one clock cycle, the precaler counter is resetted to 0 and prescaler_target_reached event is set to '0'.
+   - Counters starts incrementing and the same process repeats to generate multiple such events.
+
+- If the RESET_BIT is set to '1' then precaler counter is resetted to '0'.
+- If active low reset HRESETN is set to '0', then precaler counter and prescaler_target_reached event is resetted to '0'.
+- If the active low Stoptimer_i is set to '0', then the prescaler will pause its operation. (i.e the prescaler counter will not be set to '0')
+
 
 Assuming there is no initial count configured for the counter, basic
 operations of the timer are explained. The following four combinations
@@ -84,21 +171,6 @@ can be run in both 32 bit mode and 64 bit mode.
 
 **Programming Model**
 ---------------------
-
-**Various modes supported by the APB_TIMER:**
-
--  One shot mode:
-
-   In this mode, the timer will be disabled completely as soon as the
-   timer count reaches the target count for the first time.
-
--  Compare clear mode:
-
-   In this mode, the timer will still be enabled but the timer count
-   will be reset to '0' as soon as the timer count reaches the target
-   compare count. So that if all the other input configurations are
-   valid then interrupt will be driven as many times the count reaches
-   the target compare count
 
 **Various features enabled in the APB_TIMER:**
 
@@ -125,7 +197,7 @@ can be run in both 32 bit mode and 64 bit mode.
 **APB Timer CSRs**
 ------------------
 
-**FG_REG_LO offset = 0x000**
+**CFG_REG_LO offset = 0x000**
 
 +-------------+-------+------+---------+-------------------------------------+
 |   Field     | Bits  | Type | Default |            Description              |
