@@ -369,6 +369,85 @@ Comparator
 - By default the PWM output remains the same (state remains same until further change in input) and event_2 is kept low.
 - The PWM output is set to 0. When either the hard reset is triggered or controlelr reset is '1'.
 
+
+Working of APB_ADVANCED_TIMER for PWM generation:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- FW initialization is performed and the external input/stimulus ext_sig_i is provided.
+- For each Timer module, at every positive edge of the selected clock and when the timer is active, the following operation is performed.
+
+  - Input stage consumes 32 bit ext_sig_i and processes it accordinly based on CLKSEL, INSEL and MODE. Event signal is generated as per the working of input stage.
+
+  - The Event signal generated in the input stage is scaled down to output scaled event based on the prescaler value by Prescaler sub module.
+
+  - The above output scaled events generated go to the up down counter.
+
+  - Depending on various FW configurations of SAWTOOTH, COUNT_START and COUNT_END. The counter value, end event and the output event are generated in the updown counter and are provided as input to the 4 comparators.
+
+  - In each of the Comparator, counter value is compared against the COMP_THRESHOLD and 1 bit PWM is generated based on COMP_OP.
+
+  - 4 Comparator submodules generate 4 bit PWM signal
+
+  - This above process is repeated with respect to change in the FW configurations to generate the PWM signal.
+
+- APB_ADVANCED_TIMER has 4 Timer modules which can generate 4 independent 4-bit PWMs
+- Apart from the PWM signal, APB_ADVANCED_TIMER also generates output events based on the OUT_SEL_EVT_ENABLE and OUT_SEL_EVT1 bitfiels of REG_EVENT_CFG register.
+- Note: How each of the sub module works and generates these output is already discussed in the Architecture.
+
+
+Programmers View:
+-----------------
+APB_ADV_TIMER has 4 Timers and below programming model is followed:  
+
+APB_ADV_TIMER Initial Configurations:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+There are register bitfields in the APB advanced timer that are required to be configured before any operations are initiated. 
+
+Timer module specific configurations:
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+As we have 4 Timer modules. Each timer has to be configured with appropriate values.
+- Configure input clock source using CLKSEL bitfield in the REG_TIM[0-3]_CFG.
+- Configure input trigger mode using MODE bitfield in the REG_TIM[0-3]_CFG.
+- Configure which input has to selected using INSEL bitfield in the REG_TIM[0-3]_CFG.
+- Configure prescaler value for scaling down the frequency using PRESC bitfield in the REG_TIM[0-3]_CFG.
+- Configure sawtooth mode through which the updown down counter operates using SAWTOOTH bitfield in the REG_TIM[0-3]_CFG.
+- Configure updown counter start value and end value using COUNT_START and COUNT_END bitfield respectively in the REG_TIM[0-3]_TH.
+- Configure comparator 0 operation and comparator 0 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH0_TH.
+- Configure comparator 1 operation and comparator 1 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH1_TH.
+- Configure comparator 2 operation and comparator 2 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH2_TH.
+- Configure comparator 3 operation and comparator 3 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH3_TH.
+
+Common configurations:
+^^^^^^^^^^^^^^^^^^^^^^
+
+These configurations are common for 4 TIMERs. Typically these are used to enable or disbale output events, clock for TIMERs and select the output events from a group of 16 PWM events.  
+- Configure output select event enable that controls to enable or disable any of the 4 bit output events_o using OUT_SEL_EVT_ENABLE bitfield in the REG_EVENT_CFG.
+- Configure output event 0 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT0 bitfield in the REG_EVENT_CFG.
+- Configure output event 1 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT1 bitfield in the REG_EVENT_CFG.
+- Configure output event 2 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT2 bitfield in the REG_EVENT_CFG.
+- Configure output event 3 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT3 bitfield in the REG_EVENT_CFG.
+- Enable or disable clocks for each TIMER using using CLK_ENABLE bitfield in the REG_CH_EN.
+
+
+APB_ADV_TIMER control configurations/operations:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There are register bitfields in the APB advanced timer which controls operations of each of the timer module and its sub modules. 
+  - set the START bitfield in the REG_TIM[0-3]_CMD to start the Timer and its sub modules input stage, prescaler, updown counter and comparators.
+  - set the STOP bitfield in the REG_TIM[0-3]_CMD to stop/halt/pause the the Timer and its sub modules input stage, prescaler, updown counter and comparators.
+  - set the UPDATE bitfield in the REG_TIM[0-3]_CMD to Re-Initialization with the latest registers of the the Timer and its sub modules input stage, prescaler, updown counter and comparators.
+  - set the RESET bitfield in the REG_TIM[0-3]_CMD to Reset the the Timer and its sub modules input stage, prescaler, updown counter and comparators.
+  - set the ARM bitfield in the REG_TIM[0-3]_CMD to modify the inputs in the input stage.
+
+APB_ADV_TIMER status:
+~~~~~~~~~~~~~~~~~~~~~~
+
+The counter values of all the 4 Timers can be read via the following register bitfields in the APB advanced timer. 
+  - Use the T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER to read the values of counter maintained by updowncounter for each of the Timer.
+
+
+
 APB ADVANCED TIMER CSRs
 -----------------------
 **REG_TIM0_CMD** offset=0x000
@@ -396,22 +475,22 @@ APB ADVANCED TIMER CSRs
      - 3:3
      - Config
      - RW
-     - reset command bitfield
+     - set this bitfield to reset the timer, even when the timer is active for PWM generation.
    * - UPDATE
      - 2:2
      - Config
      - RW
-     - update command bitfield
+     - set this bitfield to update or re-initialize the timer when the timer is stopped
    * - STOP
      - 1:1
      - Config
      - RW
-     - Stop command field
+     - set this bitfield to stop/pause/halt the timer and its sub modules operations 
    * - START
      - 0:0
      - Config
      - RW
-     - Start command field
+     -  set this bitfield to Start the timer operation to generate PWM output
 ..
 
 **REG_TIM0_CFG** offset=0x004
@@ -989,22 +1068,22 @@ APB ADVANCED TIMER CSRs
      - 3:3
      - Config
      - RW
-     - reset command bitfield
+     - set this bitfield to reset the timer, even when the timer is active for PWM generation.
    * - UPDATE
      - 2:2
      - Config
      - RW
-     - update command bitfield
+     - set this bitfield to update or re-initialize the timer when the timer is stopped
    * - STOP
      - 1:1
      - Config
      - RW
-     - Stop command field
+     - set this bitfield to stop/pause/halt the timer and its sub modules operations 
    * - START
      - 0:0
      - Config
      - RW
-     - Start command field
+     - set this bitfield to Start the timer operation to generate PWM output
 ..
 
 **REG_TIM1_CFG** offset=0x044
@@ -1582,22 +1661,22 @@ APB ADVANCED TIMER CSRs
      - 3:3
      - Config
      - RW
-     - reset command bitfield
+     - set this bitfield to reset the timer, even when the timer is active for PWM generation.
    * - UPDATE
      - 2:2
      - Config
      - RW
-     - update command bitfield
+     - set this bitfield to set this bitfield to update or re-initialize the timer when the timer is stopped
    * - STOP
      - 1:1
      - Config
      - RW
-     - Stop command field
+     - set this bitfield to stop/pause/halt the timer and its sub modules operations 
    * - START
      - 0:0
      - Config
      - RW
-     - Start command field
+     - set this bitfield to Start the timer operation to generate PWM output
 ..
 
 **REG_TIM2_CFG** offset=0x084
@@ -2149,7 +2228,8 @@ APB ADVANCED TIMER CSRs
      - ADV_TIMER0 counter register
 
 ..
- **REG_TIM3_CMD** offset=0x0C0
+
+**REG_TIM3_CMD** offset=0x0C0
 
 .. list-table::
    :widths: 10 10 10 10 50
@@ -2174,22 +2254,22 @@ APB ADVANCED TIMER CSRs
      - 3:3
      - Config
      - RW
-     - reset command bitfield
+     - set this bitfield to reset the timer, even when the timer is active for PWM generation.
    * - UPDATE
      - 2:2
      - Config
      - RW
-     - update command bitfield
+     - set this bitfield to update or re-initialize the timer when the timer is stopped
    * - STOP
      - 1:1
      - Config
      - RW
-     - Stop command field
+     - set this bitfield to stop/pause/halt the timer and its sub modules operations
    * - START
      - 0:0
      - Config
      - RW
-     - Start command field
+     -  set this bitfield to Start the timer operation to generate PWM output
 ..
 
 **REG_TIM3_CFG** offset=0x0C4
@@ -2818,46 +2898,62 @@ Initialization:
 - When the HRESETn signal is low, registers default to 0 and outputs are low.
 - Four timer modules have four clock gates which will be enabled(meaning passes the ref clock to respective timer module). only when either dft_cg_enable_i is high or the bit in respective position of REG_CH_EN register is high(0th bit for timer_0,1st bit for timer_1,etc).
 - At every positive edge of the clock the CSR registers are updated based on APB signals.
-- FW can update the below bitfields to any custom value before START bitfield in the REG_TIM0_CMD register is set to '1' and the timer is not active yet (which means the timer is started for the first time. Otherwise, all the config values of all sub-modules are commanded to be updated to default .
+- FW can update the below bitfields to any custom value before START bitfield in the REG_TIM0_CMD register is set to '1' and the timer is not active yet (which means the timer is started for the first time). Otherwise, all the config values of all sub-modules are commanded to be updated to default .
 
-  - The COUNT_START start value of the up down counter
+  - The CLK_ENABLE bitfields of REG_CH_EN.
 
-  - The COUNT_END value of the up down counter
+  - The PRESC, SAWTOOTH, CLKSEL, MODE and INSEL bitfields of REG_TIM[0-3]_CFG.
+ 
+  - The COUNT_START and COUNT_END bitfields of REG_TIM[0-3]_TH.
 
-  - The direction of the up down counter(default is 0) 
+  - The direction of the up down counter(default is 0)  
 
-  - The SAWTOOTH mode of the up down counter
+  - COMP_THRESHOLD and COMP_OP bitfields of REG_TIM[0-3]_CH0_TH, REG_TIM[0-3]_CH1_TH, REG_TIM[0-3]_CH2_TH and REG_TIM[0-3]_CH3_TH
 
-  - The T3_COUNTER value of the up down counter 
+  - The OUT_SEL_EVT_ENABLE, OUT_SEL_EVT3, OUT_SEL_EVT2, OUT_SEL_EVT1 and OUT_SEL_EVT0 bitfields of REG_EVENT_CFG 
 
-  - The PRESC, MODE and INSEL register values. 
+  - Here,The general update of all the config happens in sync with the positive edge of the clock but the configuration of certain bitfields like COUNT_START,COUNT_END, direction and SAWTOOTH are updated immediately. 
 
-  - For each channel the COMP_THRESHOLD and COMP_OP values
+PWM generation or Start the Timer:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  - Here,The general update of all the config happens in sync with the positive edge of the clock but the configuration of the up down counter (COUNT_START,COUNT_END, direction and SAWTOOTH are updated immediately). 
+- FW initialization is performed.
+- External input/stimulus ext_sig_i is provided by the APB_GPIO.
+- START bitfield in the REG_TIM[0-3]_CMD is set to '1' then all the timer and its sub modules are made to active.
+- This input signal is processed by the APB_ADVANCED_TIMER according to the register configurations.
+- Use the T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER to read the values of counter of each timers.
+- According to the register configurations, APB_ADVANCED_TIMER has 4 Timer modules and maximum of four independent 4-bit PWM outputs are generated which are parsed to the I/O MUX.
+- Based on four 4-bit PWM signals a 4 bit events_o is also generated which is parsed to the Core/CPU.
 
-PWM generation:
+Stop the Timer:
 ~~~~~~~~~~~~~~~
-- FW initialization is performed and the external input/stimulus ext_sig_i is provided.
-- For each Timer module, at every positive edge of the selected clock and when the timer is active, the following operation is performed.
 
-  - Input stage consumes 32 bit ext_sig_i and processes it accordinly based on CLKSEL, INSEL and MODE. Event signal is generated as per the working of input stage.
+Once the FW initialization is performed and during the process of PWM generation, if the FW wants to stop the PWM generation it can be done by the below steps.
+- START bitfield in the REG_TIM[0-3]_CMD is set to '0'.
+- STOP bitfield in the REG_TIM[0-3]_CMD is set to '1' then all the timer and its sub modules are made to inactive state.
+- The counter values will remain same and it will not be increemented after the Timer is stopped. When T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER remain the same after the STOP timer.
+- The PWM output will be holding the previous value. 
 
-  - The Event signal generated in the input stage is scaled to output scaled event based on the prescaler value by Prescaler sub module.
+Update the Timer:
+~~~~~~~~~~~~~~~~~
 
-  - The above output scaled events generated go to the up down counter.
+Once the FW initialization is performed and during the process of PWM generation, if the FW wants to update certain configuration or re initialize the registers to generate a different kind of PWM. it can be done by the below steps.
+- START bitfield in the REG_TIM[0-3]_CMD is set to '0'.
+- STOP bitfield in the REG_TIM[0-3]_CMD is set to '1' then all the timer and its sub modules are made to inactive state.
+- UPDATE bitfield in the REG_TIM[0-3]_CMD is set to '1'.
+- The PWM output will be holding the previous value and T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER will be holding the COUNT_START value. 
+- All the latest register configurations will be parsed to the model and Once the Timer is started, it will generate a PWM output based according to these configurations.
 
-  - Depending on various FW configurations of SAWTOOTH, COUNT_START and COUNT_END. The counter value, end event and the output event are generated in the updown counter and are provided as input to the 4 comparators.
+Reset the Timer:
+~~~~~~~~~~~~~~~~~
 
-  - In each of the Comparator, counter value is compared against the COMP_THRESHOLD and 1 bit PWM is generated based on COMP_OP.
+Once the FW initialization is performed and during the process of PWM generation, if the FW wants to reset the Timer. it can be done by the below steps.
+- START bitfield in the REG_TIM[0-3]_CMD is set to '0'.
+- STOP bitfield in the REG_TIM[0-3]_CMD is set to '1' then all the timer and its sub modules are made to inactive state.
+- RESET bitfield in the REG_TIM[0-3]_CMD is set to '1'.
+- The PWM output will be zero and T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER will be holding the COUNT_START value. 
+- All the latest register configurations will be parsed to the model and Once the Timer is started, it will generate a PWM output based according to these configurations.
 
-  - 4 Comparator submodules generate 4 bit PWM signal
-
-  - This above process is repeated with respect to change in the FW configurations to generate the PWM signal.
-
-- APB_ADVANCED_TIMER has 4 Timer modules which can generate 4 independent 4-bit PWMs
-- Apart from the PWM signal, APB_ADVANCED_TIMER also generates output events based on the OUT_SEL_EVT_ENABLE and OUT_SEL_EVT1 bitfiels of REG_EVENT_CFG register.
-- Note: How each of the sub module works and generates these output is already discussed in the Architecture.
 
 Pin Diagram
 -----------
