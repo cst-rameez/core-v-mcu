@@ -407,6 +407,7 @@ Timer module specific configurations:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 As we have 4 Timer modules. Each timer has to be configured with appropriate values.
+
 - Configure input clock source using CLKSEL bitfield in the REG_TIM[0-3]_CFG.
 - Configure input trigger mode using MODE bitfield in the REG_TIM[0-3]_CFG.
 - Configure which input has to selected using INSEL bitfield in the REG_TIM[0-3]_CFG.
@@ -422,6 +423,7 @@ Common configurations:
 ^^^^^^^^^^^^^^^^^^^^^^
 
 These configurations are common for 4 TIMERs. Typically these are used to enable or disbale output events, clock for TIMERs and select the output events from a group of 16 PWM events.  
+
 - Configure output select event enable that controls to enable or disable any of the 4 bit output events_o using OUT_SEL_EVT_ENABLE bitfield in the REG_EVENT_CFG.
 - Configure output event 0 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT0 bitfield in the REG_EVENT_CFG.
 - Configure output event 1 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT1 bitfield in the REG_EVENT_CFG.
@@ -434,6 +436,7 @@ APB_ADV_TIMER control configurations/operations:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 There are register bitfields in the APB advanced timer which controls operations of each of the timer module and its sub modules. 
+
   - set the START bitfield in the REG_TIM[0-3]_CMD to start the Timer and its sub modules input stage, prescaler, updown counter and comparators.
   - set the STOP bitfield in the REG_TIM[0-3]_CMD to stop/halt/pause the the Timer and its sub modules input stage, prescaler, updown counter and comparators.
   - set the UPDATE bitfield in the REG_TIM[0-3]_CMD to Re-Initialization with the latest registers of the the Timer and its sub modules input stage, prescaler, updown counter and comparators.
@@ -444,6 +447,7 @@ APB_ADV_TIMER status:
 ~~~~~~~~~~~~~~~~~~~~~~
 
 The counter values of all the 4 Timers can be read via the following register bitfields in the APB advanced timer. 
+
   - Use the T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER to read the values of counter maintained by updowncounter for each of the Timer.
 
 
@@ -2929,6 +2933,7 @@ Stop the Timer:
 ~~~~~~~~~~~~~~~
 
 Once the FW initialization is performed and during the process of PWM generation, if the FW wants to stop the PWM generation it can be done by the below steps.
+
 - START bitfield in the REG_TIM[0-3]_CMD is set to '0'.
 - STOP bitfield in the REG_TIM[0-3]_CMD is set to '1' then all the timer and its sub modules are made to inactive state.
 - The counter values will remain same and it will not be increemented after the Timer is stopped. When T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER remain the same after the STOP timer.
@@ -2938,8 +2943,7 @@ Update the Timer:
 ~~~~~~~~~~~~~~~~~
 
 Once the FW initialization is performed and during the process of PWM generation, if the FW wants to update certain configuration or re initialize the registers to generate a different kind of PWM. it can be done by the below steps.
-- START bitfield in the REG_TIM[0-3]_CMD is set to '0'.
-- STOP bitfield in the REG_TIM[0-3]_CMD is set to '1' then all the timer and its sub modules are made to inactive state.
+
 - UPDATE bitfield in the REG_TIM[0-3]_CMD is set to '1'.
 - The PWM output will be holding the previous value and T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER will be holding the COUNT_START value. 
 - All the latest register configurations will be parsed to the model and Once the Timer is started, it will generate a PWM output based according to these configurations.
@@ -2948,6 +2952,7 @@ Reset the Timer:
 ~~~~~~~~~~~~~~~~~
 
 Once the FW initialization is performed and during the process of PWM generation, if the FW wants to reset the Timer. it can be done by the below steps.
+
 - START bitfield in the REG_TIM[0-3]_CMD is set to '0'.
 - STOP bitfield in the REG_TIM[0-3]_CMD is set to '1' then all the timer and its sub modules are made to inactive state.
 - RESET bitfield in the REG_TIM[0-3]_CMD is set to '1'.
