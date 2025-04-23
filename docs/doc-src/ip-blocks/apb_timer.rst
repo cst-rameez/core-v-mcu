@@ -194,6 +194,79 @@ can be run in both 32 bit mode and 64 bit mode.
 
 -  Initial counter value can be configured to start the timer counter value by configuring the TIMER_VAL_LO or TIMER_VAL_HI register
 
+System Architecture:
+--------------------
+
+The figure below depicts the connections between the APB TIMER and rest of the modules in Core-V-MCU:-
+
+.. figure:: apb_timer_soc_connections.png
+   :name: APB_TIMER_SoC_Connections
+   :align: center
+   :alt:
+
+   APB TIMER Core-V-MCU connections diagram
+
+- The event_lo_i and event_hi_i input to the APB_TIMER is provided by APB_EVENT_GENERATOR. 
+- APB_TIMER process this input signals based on the various CSR configurations.
+- APB_TIMER generate few output event signals that are further parsed as interrupts to the Core complex.
+- APB_TIMER receives the input stop_timer_i from Core complex that can stop the operations of APB TIMER.
+
+Programmers View:
+-----------------
+APB_TIMER has 4 Timers and below programming model is followed:  
+
+Initial Configurations:
+~~~~~~~~~~~~~~~~~~~~~~~
+There are CSR bitfields in the APB advanced timer that are required to be configured before any operations are initiated. 
+
+Timer module specific configurations:
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+As we have 4 Timer modules. Each timer has to be configured with appropriate values.
+
+- Configure input clock source using CLKSEL bitfield in the REG_TIM[0-3]_CFG.
+- Configure input trigger mode using MODE bitfield in the REG_TIM[0-3]_CFG.
+- Configure which input has to selected using INSEL bitfield in the REG_TIM[0-3]_CFG.
+- Configure prescaler value for scaling down the frequency using PRESC bitfield in the REG_TIM[0-3]_CFG.
+- Configure sawtooth mode through which the updown down counter operates using SAWTOOTH bitfield in the REG_TIM[0-3]_CFG.
+- Configure updown counter start value and end value using COUNT_START and COUNT_END bitfield respectively in the REG_TIM[0-3]_TH.
+- Configure comparator 0 operation and comparator 0 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH0_TH.
+- Configure comparator 1 operation and comparator 1 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH1_TH.
+- Configure comparator 2 operation and comparator 2 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH2_TH.
+- Configure comparator 3 operation and comparator 3 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH3_TH.
+
+Common configurations:
+^^^^^^^^^^^^^^^^^^^^^^
+
+These configurations are common for 4 TIMERs. Typically these are used to enable or disbale output events, clock for TIMERs and select the output events from a group of 16 PWM events.  
+
+- Configure output select event enable that controls to enable or disable any of the 4 bit output events_o using OUT_SEL_EVT_ENABLE bitfield in the REG_EVENT_CFG.
+- Configure output event 0 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT0 bitfield in the REG_EVENT_CFG.
+- Configure output event 1 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT1 bitfield in the REG_EVENT_CFG.
+- Configure output event 2 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT2 bitfield in the REG_EVENT_CFG.
+- Configure output event 3 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT3 bitfield in the REG_EVENT_CFG.
+- Enable or disable clocks for each TIMER using using CLK_ENABLE bitfield in the REG_CH_EN.
+
+
+Control configurations/operations:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There are CSR bitfields in the APB advanced timer which controls operations of each of the timer module and its sub modules. 
+
+- set the START bitfield in the REG_TIM[0-3]_CMD to start the Timer and its sub modules input stage, prescaler, updown counter and comparators.
+- set the STOP bitfield in the REG_TIM[0-3]_CMD to stop/halt/pause the the Timer and its sub modules input stage, prescaler, updown counter and comparators.
+- set the UPDATE bitfield in the REG_TIM[0-3]_CMD to Re-Initialization with the latest CSRs of the the Timer and its sub modules input stage, prescaler, updown counter and comparators.
+- set the RESET bitfield in the REG_TIM[0-3]_CMD to Reset the the Timer and its sub modules input stage, prescaler, updown counter and comparators.
+- set the ARM bitfield in the REG_TIM[0-3]_CMD to modify the inputs in the input stage.
+
+Status configurations:
+~~~~~~~~~~~~~~~~~~~~~~
+
+The counter values of all the 4 Timers can be read via the following CSR bitfields in the APB advanced timer. 
+
+- Use the T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER to read the values of counter maintained by updowncounter for each of the Timer.
+
+
 **APB Timer CSRs**
 ------------------
 
@@ -339,3 +412,42 @@ can be run in both 32 bit mode and 64 bit mode.
 | TIMER_START_HI  | 31:0 |  WS  |   0x0   | Write strobe address for    |
 |                 |      |      |         | resetting the high counter  |
 +-----------------+------+------+---------+-----------------------------+
+
+
+Pin Diagram
+-----------
+
+The figure below represents the input and output pins for the APB Advanced Timer:-
+
+.. figure:: apb_timer_pin_diagram.png
+   :name: APB_Advanced_Timer_Pin_Diagram
+   :align: center
+   :alt:
+   
+   APB Timer Pin Diagram
+
+Clock and Reset Signals
+~~~~~~~~~~~~~~~~~~~~~~~
+  - HCLK: System clock input
+  - HRESETn: Active-low reset input
+
+APB Interface Signals
+~~~~~~~~~~~~~~~~~~~~~
+  - PADDR[11:0]: APB address bus input
+  - PSEL: APB peripheral select input
+  - PENABLE: APB enable input
+  - PWRITE: APB write control input (high for write, low for read)
+  - PWDATA[31:0]: APB write data bus input
+  - PREADY: APB ready output to indicate transfer completion
+  - PRDATA[31:0]: APB read data bus output
+  - PSLVERR: APB slave error
+
+APB Timer Interface Signals
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  - low_speed_clk_i: Reference clock input
+  - stop_timer_i: Input signal to stop timer
+  - event_lo_i: Input event for the timer low
+  - event_hi_i: Input event for the timer high
+  - irq_lo_o: Output interrupt from timer low
+  - irq_hi_o: Output interrupt from timer high
+  - busy_o: Output busy signal that signifies that any one of the timer is active

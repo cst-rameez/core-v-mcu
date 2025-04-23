@@ -394,7 +394,7 @@ The figure below depicts the connections between the APB ADVANCED TIMER and rest
 
    APB ADVANCED TIMER Core-V-MCU connections diagram
 
-- The ext_sig_i input to the APB_ADVANCED_TIMER is directly connected to the APB_GPIO. 
+- The ext_sig_i input to the APB_ADVANCED_TIMER is provided by the APB_GPIO. 
 - APB_ADVANCED_TIMER process this input signals based on the various CSR configurations.
 - APB_ADVANCED_TIMER generate few output event signals that are further parsed as interrupts to the Core complex.
 - APB_ADVANCED_TIMER generates PWM outputs which are parsed to the external devices through I/O mux.
@@ -1571,6 +1571,39 @@ REG_TIM3_COUNTER
 +------------+------+-----------------+--------+------------------------+
 
 
+REG_EVENT_CFG 
+~~~~~~~~~~~~~
+  - Address Offset=0x100
+
++--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
+| Field              | Bits  | Default Value   | Access | Description                                                                               |
++====================+=======+=================+========+===========================================================================================+
+| RESERVED           | 31:20 | 0               | --     | Reserved                                                                                  |
++--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
+| OUT_SEL_EVT_ENABLE | 19:16 | 0               | RW     | Output event select ENABLE. Each bit represents an event enable for 4 bit event_o output. |
++--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
+| OUT_SEL_EVT3       | 15:12 | 0               | RW     | Output event select 3 from a group of 16 PWM outputs                                      |
++--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
+| OUT_SEL_EVT2       | 11:8  | 0               | RW     | Output event select 2 from a group of 16 PWM outputs                                      |
++--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
+| OUT_SEL_EVT1       | 7:4   | 0               | RW     | Output event select 1 from a group of 16 PWM outputs                                      |
++--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
+| OUT_SEL_EVT0       | 3:0   | 0               | RW     | Output event select 1 from a group of 16 PWM outputs                                      |
++--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
+
+
+REG_CH_EN 
+~~~~~~~~~~~~~
+  - Address Offset=0x104
+
++------------+-------+-----------------+--------+---------------------------------------------------------------------------------------------------+
+| Field      | Bits  | Default Value   | Access | Description                                                                                       |
++============+=======+=================+========+===================================================================================================+
+| RESERVED   | 31:4  | 0               | --     | Reserved                                                                                          |
++------------+-------+-----------------+--------+---------------------------------------------------------------------------------------------------+
+| CLK_ENABLE | 3:0   | 0               | RW     | Each bit acts as clock enable for each timer. For eg: if 2nd bit is set Timer 2 clock is enabled. |
++------------+-------+-----------------+--------+---------------------------------------------------------------------------------------------------+
+
 Firmware Guidelines
 -------------------
 
@@ -1663,6 +1696,7 @@ APB Interface Signals
   - PWDATA[31:0]: APB write data bus input
   - PREADY: APB ready output to indicate transfer completion
   - PRDATA[31:0]: APB read data bus output
+  - PSLVERR: APB slave error
 
 APB Advanced Timer Interface Signals
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
