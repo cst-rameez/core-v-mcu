@@ -26,20 +26,29 @@ Features
 ---------
 -  Multiple trigger input sources
 
--  Configurable 32 bit or 64 bit timer
+-  Two 32-bit configurable prescaler
 
--  Two 32 bit configurable prescaler
+-  Configurable interrupts
 
--  Configurable input trigger modes
+-  Configurable datawidth of timer:
 
--  Configurable clock gating for each timer
+   - Two 32-bit timers 
+   - Single 64-bit timer
+
+-  Configurable modes of timer:
+
+   - One shot mode 
+   - Compare clear mode.
+
+-  Configurable control operations of timer: (Start, Stop and Reset)
+
 
 Architecture
 ------------
 
 Block Diagram of APB_Timer:
 
-.. image:: apb_timer_image.png
+.. image:: apb_timer_block_diagram.png
    :width: 5in
    :height: 2.38889in
 
@@ -50,12 +59,12 @@ Block Diagram of APB_Timer:
 APB control logic
 ~~~~~~~~~~~~~~~~~
 The APB control logic interfaces with the APB bus to decode and execute commands.
-It handles register reads and writes according to the APB protocol, providing a standardized interface to the system.
+It handles CSR reads and writes according to the APB protocol, providing a standardized interface to the system.
 
 APB TIMER CSRs
 ~~~~~~~~~~~~~~~
 
-- APB TIMER registers store the configuration for each 32 bit Timer so that both the timers can work independently 
+- APB TIMER CSRs store the configuration for each 32 bit Timer so that both the timers can work independently 
 
   - Mode 64-bit enable, Prescalar count. 
   - Reference clock enable and Prescalar enable.
@@ -65,109 +74,164 @@ APB TIMER CSRs
 
 Inroduction
 ~~~~~~~~~~~~
+
 - APB Timer has two submodules/components that is Prescaler and Timer.
-- FW performs Initialization and drives various configuration register. 
+- FW performs Initialization and drives various configuration CSR. 
 - Once start is issued, Timer counts from initial value till it reaches the target value and generates an output interrupt.
-- If the prescaler is also enabled, prescaler and timer works in the cascaded manner. 
-- Only when the prescaler prescaler_target_reached is set to '1', Timer is enabled and the Timer Counter is increemented by '1'.
-- Assusming Initial value of Timer Counter is '0'. then it will reach to N, if prescaler_target_reached is issued N times by the prescaler.
+- If the prescaler is also enabled, prescaler and timer works in the cascaded manner. when the prescaler_lo_target_reached is set to '1', Timer is enabled and the Timer Counter is increemented by '1'.
+- Assusming Initial value of Timer Counter is '0'. then it will reach to N, if prescaler_lo_target_reached is issued N times by the prescaler.
+
+Control signal for Timer
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+- APB Timer generates few control signals(i.e reset, enable) to control the prescaler and timer sub modules.
+- For timer_lo, the following signals like reset_prescaler_lo, enable_prescaler_lo, reset_timer_lo, enable_timer_lo are generated. 
+- For timer_hi, the following signals like reset_prescaler_hi, enable_prescaler_hi, reset_timer_hi, enable_timer_hi are generated. 
+- For 32-bit timer, timer_hi control signals are independent of timer_lo control signals. Let us understand how these signals are generated for 32- bit timer_lo:
+
+   - reset_prescaler_lo:
+      
+      - By default reset_prescaler_lo signal is set to '0'
+      - reset_prescaler_lo signal is set to '1': 
+
+         - When PRESCALER_EN_BIT is set to '1' and prescaler_lo_target_reached is set '1'.
+         - When the RESET_BIT in the CFG_REG_LO CSR is set to '1'.
+         - When the RESET_LO in the TIMER_RESET_LO CSR is set to '1'. 
+
+   - enable_prescaler_lo:
+
+      - By default, the enable_prescaler_lo will be '0'.
+      - if the REF_CLK_EN_BIT is set to '1', then the enable_prescaler_lo will be set to any value only at the positive edge of the reference clock 
+      - enable_prescaler_lo is set to '1':  
+
+         - when PRESCALER_EN_BIT and ENABLE_BIT of CFG_REG_LO is '1' and stop_timer_i is '0'.
+
+   - reset_timer_lo:
+
+      - By default reset_timer_lo signal is set to '0'.
+      - reset_timer_lo signal is set to '1': 
+
+         - When CMP_CLR_BIT is set to '1' and timer_lo_target_reached is set '1'. (i.e Compare clear mode is enabled)
+         - When the RESET_BIT in the CFG_REG_LO CSR is set to '1'.
+         - When the RESET_LO in the TIMER_RESET_LO CSR is set to '1'. 
+
+   - enable_timer_lo:
+
+      - By default the enable_timer_lo will be '0' and enable_timer_lo will be '0' when timer_lo_target_reached is set to '1'.
+      - if the REF_CLK_EN_BIT is set to '1', then the enable_timer_lo will be set to any value only at the positive edge of the reference clock.
+      - if event_lo_i signal is '1' and IEM_BIT of CFG_REG_LO is '1' then the ENABLE_BIT of CFG_REG_LO is set to '1'.
+      - if TIMER_START_LO is set to any value other than '0' then the ENABLE_BIT of CFG_REG_LO is set to '1'.
+      - enable_timer_lo is set to '1':
+
+         - when ENABLE_BIT of CFG_REG_LO is '1' and stop_timer_i is '0' (If prescaler_lo is disabled).
+         - when ENABLE_BIT of CFG_REG_LO and prescaler_lo_target_reached is '1' and stop_timer_i is '0' (If prescaler_lo is enabled).
+            
+- The control signals for the 32-bit timer_hi are generated in the similar way as 32-bit timer_lo.
+- For for 64-bit timer
+   
+   - Only 1 prescaler_lo is used and the control signals of prescaler are driven in the similar way of 32-bit timer.
+   - Both timer_hi and timer_lo are used in the cascadded fashion.
+   - enable_timer_lo, enable_prescaler_lo and reset_prescaler_lo are set in the similar way
+   
+   - reset_timer_lo:
+
+      - By default reset_timer_lo signal is set to '0' for every positive edge of the selected clock and if the below 3 conditions are not met.
+      - reset_timer_lo signal is set to '1': 
+
+         - When CMP_CLR_BIT in the CFG_REG_LO CSR, timer_lo_target_reached and timer_hi_target_reached are set to '1'.
+         - When the RESET_BIT in the CFG_REG_LO CSR is set to '1'.
+         - When the RESET_LO in the TIMER_RESET_LO CSR is set to '1'. 
+   
+   - reset_timer_hi:
+
+      - By default reset_timer_hi signal is set to '0' for every positive edge of the selected clock and if the below 3 conditions are not met.
+      - reset_timer_hi signal is set to '1': 
+
+         - When CMP_CLR_BIT in the CFG_REG_LO CSR, timer_lo_target_reached and timer_hi_target_reached are set to '1'.
+         - When the RESET_BIT in the CFG_REG_HI CSR is set to '1'.
+         - When the RESET_HI in the TIMER_RESET_HI CSR is set to '1'.
+
+   - enable_timer_hi:
+      - By default the enable_timer_hi will be '0' and enable_timer_hi will be '0', when timer_lo_target_reached and timer_hi_target_reached is set to '1'.
+      - if the REF_CLK_EN_BIT is set to '1', then the enable_timer_hi will be set to any value only at the positive edge of the reference clock.
+      - if event_lo_i signal is '1' and IEM_BIT of CFG_REG_LO is '1' then the ENABLE_BIT of CFG_REG_LO is set to '1'.
+      - if TIMER_START_LO is set to any value other than '0' then the ENABLE_BIT of CFG_REG_LO is set to '1'.
+      - enable_timer_hi is set to '1':
+
+         - when ENABLE_BIT of CFG_REG_LO is '1', counter value of timer_lo is 0xFFFFFFFF and stop_timer_i is '0' (If prescaler_lo is disabled).
+         - when ENABLE_BIT of CFG_REG_LO and prescaler_lo_target_reached is '1', and counter value of timer_lo is 0xFFFFFFFF and stop_timer_i is '0' (If prescaler_lo is enabled).
+
+- For 32 bit or 64 bit mode, if the stop_timer_i is set to '1', then all the enable related control signals like  enable_prescaler_hi, enable_prescaler_lo, enable_timer_hi and enable_timer_lo are set to '0'.
+
+Prescaler
+~~~~~~~~~
+- Prescaler generates prescaler_lo_target_reached event after N number of clock cyles. where N is prescaler compare value.
+- The operation is same for prescaler_lo and prescaler_hi in both the 32 bit and 64 bit mode. For explanation we have used prescaler_lo CSRs below.
+- PRESCALER_COMP bitfield of CFG_REG_LO CSR, enable_prescaler_lo and reset_prescaler_lo are passed as inputs to the prescaler.
+- Prescaler maintains a precaler counter whose initial value is '0'.
+- For every positive edge of the HCLK clock, if enable_prescaler_lo is set to '1'
+
+   - precaler counter is incremented by value '1' until it reaches the PRESCALER_COMP value.
+   - Once the precaler counter reaches PRESCALER_COMP value and prescaler_lo_target_reached event is set to '1'.
+   - Once the reset_prescaler_lo is set to '1', precaler counter and prescaler_lo_target_reached are resetted to '0'.
+   - precaler counter starts incrementing and the same process repeats to generate multiple such events.
+
+- If the enable_prescaler_lo is set to '0', then the prescaler will pause its operation. (i.e the prescaler counter will not be set to '0')
+
+32-bit Timer 
+~~~~~~~~~~~~
+- 32 bit Timer generates timer_lo_target_reached event after N number of clock cyles. where N is timer compare value.
+- The operation is same for timer_lo and timer_hi in both the 32 bit and 64 bit mode. For explanation we have used timer_lo CSRs below.
+- TIMER_CMP_LO, TIMER_VAL_LO, reset_timer_lo and enable_timer_lo are passed as inputs to the timer.
+- Timer maintains a timer counter whose initial value is '0' and FW can overwrite/program this timer counter to any value by configuring TIMER_VAL_LO CSR. 
+- For every positive edge of the HCLK clock, if enable_timer_lo set to '1'
+
+   - timer counter is incremented by value '1' until it reaches the TIMER_CMP_LO value.
+   - Once the timer counter reaches TIMER_CMP_LO value and timer_lo_target_reached event is set to '1'.
+   - if the IRQ_BIT is set to '1', then the irq_lo_o interrupt will be asserted.
+   - if one shot mode is enabled:
+      - Once enable_timer_lo is set to '0', then the timer will pause its operation. (i.e the timer counter will not be set to '0')
+   - if compare clear mode is enabled:
+      - Once reset_timer_lo is set to '1', timer counter and timer_lo_target_reached are resetted to '0'.
+      - timer counters starts incrementing and the same process repeats to generate multiple such events.
 
 
-APB Timer Operations:
+Working of APB Timer:
 ~~~~~~~~~~~~~~~~~~~~~
 
-Configurable datawidth of the Timer:
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Timer configurations based on datawidth:
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 - 32 bit timer:
 
-   - if the MODE_64_BIT is set to '0', It supports 32 bit timer_low and 32 bit timer_high. they can be configured parallelly at the same time.
-   - timer low which has a 32 bit prescaler and 32 bit counter which will have unique input_lo and output_lo interrupt pins.
-   - timer high which has a 32 bit prescaler and 32 bit counter which will have unique input_hi and output_hi interrupt pins.
+   - if the MODE_64_BIT is set to '0', It supports 32 bit timer_lo and 32 bit timer_hi. they can be configured parallelly at the same time.
+   - timer low which has a 32 bit prescaler and 32 bit counter which will have unique input_lo and irq_lo_o interrupt pins.
+   - timer high which has a 32 bit prescaler and 32 bit counter which will have unique input_hi and irq_hi_o interrupt pins.
 
 - 64 bit timer:
 
    - if the MODE_64_BIT is set to '1', It supports a single 64 bit timer.
-   - the 64 bit timer has a 32 bit prescaler and 64 bit counter. The FW has to drive low timer related input pins and registers.
-   - The output interrupt will be driven in the dedicated pins for timer low.
+   - the 64 bit timer has a 32 bit prescaler_lo. 64 bit timer is managed by using both 32 bit timer_lo and 32 bit timer_hi.
+   - For all the FW configurations, The FW has to drive timer_lo related input_lo input pins and CSRs.
+   - The output interrupt will be issued on irq_lo_o pin.
+   - if the MODE_MTIME_BIT is set to '1' then issue an interrupt irq_lo_o irrespective of the value of IRQ_BIT.
 
 Modes of Timer:
 ^^^^^^^^^^^^^^^
 - One shot mode:
 
-   - For 32-bit timer, the timer will be disabled when the timer low count reaches the target count for the first time. Similar operation is done for the timer high.
-   - For 64-bit timer, The timer will be disabled when the timer low count reaches 0xFFFFFFFF and the timer high count reaches target count for the first time.
+   - For 32-bit timer, the timer will be disabled when the timer_lo counter reaches the TIMER_CMP_LO for the first time. Similar operation is done for the timer high.
+   - For 64-bit timer, The timer will be disabled when the timer_lo counter reaches 0xFFFFFFFF and the timer_hi counter reaches TIMER_CMP_LO for the first time.
 
 - Compare clear mode:
 
    - 32 bit Timer: 
-      - When the the timer count reaches the target count, the timer is not disbaled instead timer count will be reset to '0'. 
-      - As the timer is still enabled, the timer count will be increement by '1' for every positive edge of the clock until it reaches the target count.
+      - When the timer_lo counter reaches the TIMER_CMP_LO, the timer is not disbaled instead timer_lo counter will be reset to '0'. 
+      - As the timer is still enabled, the timer_lo counter will be increement by '1' for every positive edge of the clock until it reaches the TIMER_CMP_LO.
       - The same process is repeated.
    - 64 bit Timer: 
-      - When the timer low count reaches 0xFFFFFFFF and the timer high count reaches target count, the timer is not disbaled instead timer low count and timer high count will be resetted to '0'. 
-      - As the timer low and timer high are still enabled, the timer low count will be increement by '1' for every positive edge of the clock until timer low count reaches 0xFFFFFFFF and the timer high count reaches target count.
-      - The same process is repeated.  
-
-Control signal for Timer:
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-- APB Timer generates control signals like reset_prescaler, enable_prescaler, reset_timer, enable_timer. 
-
-
-Prescaler
-~~~~~~~~~
-
-- PRESCALER_COUNT and PRESCALER_EN_BIT are parsed to the prescaler.
-- if the ENABLE_BIT and PRESCALER_EN_BIT are set to '1' then Prescaler starts its operation.
-- Prescaler maintains a precaler counter whose initial value is '0'. 
-- if the REF_CLK_EN_BIT is set to '1', then reference clock will be selected else Hclk will be selected.
-- For every positive edge of the selected clock, if PRESCALER_EN_BIT set to '1'
-
-   - precaler counter is incremented by value '1' until it reaches the PRESCALER_COUNT value.
-   - Once the precaler counter reaches PRESCALER_COUNT value and prescaler_target_reached event is set to '1' for one clock cycle.
-   - After one clock cycle, the precaler counter is resetted to 0 and prescaler_target_reached event is set to '0'.
-   - Counters starts incrementing and the same process repeats to generate multiple such events.
-
-- If the RESET_BIT is set to '1' then precaler counter is resetted to '0'.
-- If active low reset HRESETN is set to '0', then precaler counter and prescaler_target_reached event is resetted to '0'.
-- If the active low Stoptimer_i is set to '0', then the prescaler will pause its operation. (i.e the prescaler counter will not be set to '0')
-
-Timer 
-~~~~~
-- TIMER_VAL_LO and ENABLE_BIT are parsed to the timer.
-- Prescaler maintains a precaler counter whose initial value is '0'. 
-- if the REF_CLK_EN_BIT is set to '1', then reference clock will be selected else Hclk will be selected.
-- For every positive edge of the selected clock, if PRESCALER_EN_BIT set to '1'
-
-   - if the ENABLE_BIT and PRESCALER_EN_BIT are set to '1' then Prescaler starts its operation.
-   - precaler counter is incremented by value '1' until it reaches the PRESCALER_COUNT value.
-   - Once the precaler counter reaches PRESCALER_COUNT value and prescaler_target_reached event is set to '1' for one clock cycle.
-   - After one clock cycle, the precaler counter is resetted to 0 and prescaler_target_reached event is set to '0'.
-   - Counters starts incrementing and the same process repeats to generate multiple such events.
-
-- If the RESET_BIT is set to '1' then precaler counter is resetted to '0'.
-- If active low reset HRESETN is set to '0', then precaler counter and prescaler_target_reached event is resetted to '0'.
-- If the active low Stoptimer_i is set to '0', then the prescaler will pause its operation. (i.e the prescaler counter will not be set to '0')
-
-
-Assuming there is no initial count configured for the counter, basic
-operations of the timer are explained. The following four combinations
-can be run in both 32 bit mode and 64 bit mode.
-
-**Timer operation with both Prescaler and ref_clk disabled:**
-
--  Timer module directly enables the counter to start incrementing the count for every positive edge of Hclk clock from '0' till it reaches the compare value. When the count reaches the target compare value the timer value drives the output interrupt pins if its enabled.
-
-**Timer operation with Prescaler disabled and ref_clk enabled:**
-
--  Timer modules wait until the reference clock's edge is detected and then enable the counter to start incrementing the count for every positive edge of the reference clock from '0' till it reaches the compare value. When the count reaches the target compare value the timer value drives the output interrupt pins if its enabled.
-
-**Timer operation with Prescaler enabled and ref_clk disabled:**
-
--  Timer module will enable the prescaler and counter in the cascaded manner that is once the prescaler target is achieved the counter will start. The prescaler will be configured and once the target compare value of the prescaler is reached then the counter will start incrementing the count for every positive edge of Hclk clock from '0' till it reaches the compare value. When the count reaches the target compare value the timer value drives the output interrupt pins if its enabled.
-
-**Timer operation with Prescaler enabled and ref_clk enabled:**
-
--  Timer will enable the prescaler and counter in the cascaded manner that is once the prescaler target is achieved and reference clock's edge is detected the counter will start. The prescaler will be configured and once the target compare value of the prescaler is reached then the counter will start incrementing the count for every positive edge of the reference clock from '0' till it reaches the compare value. When the count reaches the target compare value the timer value drives the output interrupt pins if its enabled.
+      - When the timer_lo counter reaches 0xFFFFFFFF and the timer_hi counter reaches target count, the timer is not disbaled instead timer_lo counter and timer_hi counter will be resetted to '0'. 
+      - As the timer low and timer high are still enabled, the timer_lo counter will be increement by '1' for every positive edge of the clock until timer_lo counter reaches 0xFFFFFFFF and the timer_hi counter reaches TIMER_CMP_HI.
+      - The same process is repeated. 
 
 
 System Architecture:
@@ -184,95 +248,55 @@ The figure below depicts the connections between the APB TIMER and rest of the m
 
 - The event_lo_i and event_hi_i input to the APB_TIMER is provided by APB_EVENT_GENERATOR. 
 - APB_TIMER process this input signals based on the various CSR configurations.
-- APB_TIMER generate few output event signals that are further parsed as interrupts to the Core complex.
+- APB_TIMER generate few output event signals that are further passed as interrupts to the Core complex.
 - APB_TIMER receives the input stop_timer_i from core complex that can stop the operations of APB TIMER.
 
 Programmers View:
 -----------------
-APB_TIMER has 4 Timers and below programming model is followed:  
-
-**Programming Model**
----------------------
-
-**Various features enabled in the APB_TIMER:**
-
--  Mode selection of 32 bit or 64 bit counters by configuring the MODE_64_BIT in CFG_REG_LO or CFG_REG_HI register.
-
--  Reset the counter value by configuring the RESET_BIT in CFG_REG_LO or CFG_REG_HI register.
-
--  Enable or disable the ref_clk by configuring the REF_CLK_EN_BIT in CFG_REG_LO or CFG_REG_HI register.
-
--  Enable or disable the prescaler by configuring the PRESCALER_BIT in CFG_REG_LO or CFG_REG_HI register.
-
--  Enable or disable the counter to start the counting by configuring the ENABLE_BIT in CFG_REG_LO or CFG_REG_HI register.
-
--  Configure the Mode_mtime bit so that in the 64 bit mode even if the IRQ_bit is not set an interrupt is being driven when the count == compare_value. Configure the MODE_MTIME_BIT in CFG_REG_LO or CFG_REG_HI register.
-
--  Stoptimer_i pin is used to stop the counter operation of the timer module directly.
-
--  busy_o pin is used to provide will be driven high if anyone of the counter is enabled.
-
--  Overwriting the counter value directly via the by configuring the TIMER_VAL_LO or TIMER_VAL_HI register.
-
--  Initial counter value can be configured to start the timer counter value by configuring the TIMER_VAL_LO or TIMER_VAL_HI register
-
 
 Initial Configurations:
 ~~~~~~~~~~~~~~~~~~~~~~~
-There are CSR bitfields in the APB advanced timer that are required to be configured before any operations are initiated. 
+There are CSR bitfields in the APB timer that are required to be configured before any operations are initiated. 
+As we have 2 Timer modules that can be configured individually. Each timer has to be configured with appropriate values.
 
-Timer module specific configurations:
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-As we have 4 Timer modules. Each timer has to be configured with appropriate values.
-
-- Configure input clock source using CLKSEL bitfield in the REG_TIM[0-3]_CFG.
-- Configure input trigger mode using MODE bitfield in the REG_TIM[0-3]_CFG.
-- Configure which input has to selected using INSEL bitfield in the REG_TIM[0-3]_CFG.
-- Configure prescaler value for scaling down the frequency using PRESC bitfield in the REG_TIM[0-3]_CFG.
-- Configure sawtooth mode through which the updown down counter operates using SAWTOOTH bitfield in the REG_TIM[0-3]_CFG.
-- Configure updown counter start value and end value using COUNT_START and COUNT_END bitfield respectively in the REG_TIM[0-3]_TH.
-- Configure comparator 0 operation and comparator 0 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH0_TH.
-- Configure comparator 1 operation and comparator 1 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH1_TH.
-- Configure comparator 2 operation and comparator 2 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH2_TH.
-- Configure comparator 3 operation and comparator 3 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH3_TH.
-
-Common configurations:
-^^^^^^^^^^^^^^^^^^^^^^
-
-These configurations are common for 4 TIMERs. Typically these are used to enable or disbale output events, clock for TIMERs and select the output events from a group of 16 PWM events.  
-
-- Configure output select event enable that controls to enable or disable any of the 4 bit output events_o using OUT_SEL_EVT_ENABLE bitfield in the REG_EVENT_CFG.
-- Configure output event 0 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT0 bitfield in the REG_EVENT_CFG.
-- Configure output event 1 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT1 bitfield in the REG_EVENT_CFG.
-- Configure output event 2 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT2 bitfield in the REG_EVENT_CFG.
-- Configure output event 3 select value which is used to select an event from 16 bit PWM output using using OUT_SEL_EVT3 bitfield in the REG_EVENT_CFG.
-- Enable or disable clocks for each TIMER using using CLK_ENABLE bitfield in the REG_CH_EN.
-
+-  Mode selection of 32 bit or 64 bit counters by configuring the MODE_64_BIT in CFG_REG_LO or CFG_REG_HI CSR.
+-  Enable or disable the ref_clk by configuring the REF_CLK_EN_BIT in CFG_REG_LO or CFG_REG_HI CSR.
+-  Enable or disable the prescaler by configuring the PRESCALER_EN_BIT in CFG_REG_LO or CFG_REG_HI CSR.
+-  Prescaler compare value can configured by using the PRESCALER_COMP in CFG_REG_LO or CFG_REG_HI CSR.
+-  One shot mode can be enabled or disbaled by configuring the ONE_SHOT_BIT in CFG_REG_LO or CFG_REG_HI CSR.
+-  Compare clear mode can be enabled or disbaled by configuring the CMP_CLR_BIT in CFG_REG_LO or CFG_REG_HI CSR.
+-  event input can be enabled or disbaled by configuring the IEM_BIT in CFG_REG_LO or CFG_REG_HI CSR.
+-  Configure the MODE_MTIME_BIT bit so that in the 64 bit mode even if the IRQ_bit is not set an interrupt is being driven when the count == compare_value. Configure the MODE_MTIME_BIT in CFG_REG_LO or CFG_REG_HI CSR.
+-  Overwriting the counter value directly via the by configuring the TIMER_VAL_LO or TIMER_VAL_HI CSR.
+-  Initial counter value can be configured by using the TIMER_VAL_LO or TIMER_VAL_HI CSR.
+-  Timer compare value can be configured by using the TIMER_CMP_LO or TIMER_CMP_HI CSR.
+-  stop_timer_i is used to stop the counter operation of the both the timer_lo and timer_hi directly.
 
 Control configurations/operations:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 There are CSR bitfields in the APB advanced timer which controls operations of each of the timer module and its sub modules. 
 
-- set the START bitfield in the REG_TIM[0-3]_CMD to start the Timer and its sub modules input stage, prescaler, updown counter and comparators.
-- set the STOP bitfield in the REG_TIM[0-3]_CMD to stop/halt/pause the the Timer and its sub modules input stage, prescaler, updown counter and comparators.
-- set the UPDATE bitfield in the REG_TIM[0-3]_CMD to Re-Initialization with the latest CSRs of the the Timer and its sub modules input stage, prescaler, updown counter and comparators.
-- set the RESET bitfield in the REG_TIM[0-3]_CMD to Reset the the Timer and its sub modules input stage, prescaler, updown counter and comparators.
-- set the ARM bitfield in the REG_TIM[0-3]_CMD to modify the inputs in the input stage.
+- set the ENABLE_BIT in CFG_REG_LO or CFG_REG_HI CSR so that timer_lo or timer_hi can start counting. 
+- set the START_LO or START_HI in TIMER_START_LO or TIMER_START_HI CSR respectively so that timer_lo or timer_hi can start counting. 
+- set the RESET_BIT in CFG_REG_LO or CFG_REG_HI CSR so that timer_lo or timer_hi can be resetted.
+- set the RESET_LO or RESET_HI in TIMER_RESET_LO or TIMER_RESET_HI CSR respectively so that timer_lo or timer_hi can be resetted.
 
 Status configurations:
 ~~~~~~~~~~~~~~~~~~~~~~
 
 The counter values of all the 4 Timers can be read via the following CSR bitfields in the APB advanced timer. 
 
-- Use the T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER to read the values of counter maintained by updowncounter for each of the Timer.
+- Use the TIMER_VAL_LO or TIMER_VAL_HI CSR for the current value of the timer_lo counter or timer_hi counter respectively.
+- busy_o pin is used to provide the status of APB Timer will be driven high if anyone of the counter is enabled..
 
-
-**APB Timer CSRs**
+APB Timer CSRs
 ------------------
 
-**CFG_REG_LO offset = 0x000**
+CFG_REG_LO 
+~~~~~~~~~~ 
+
+- Address Offset = 0x000
 
 +------------------+-------+------+---------+--------------------------------+
 |     Field        | Bits  | Type | Default |         Description            |
@@ -282,7 +306,7 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 | MODE_MTIME_BIT   | 30:30 |  RW  |         | 1=MTIME mode Changes interrupt |
 |                  |       |      |         | to be >= CMP value             |
 +------------------+-------+------+---------+--------------------------------+
-| PRESCALER_COUNT  | 15:8  |  RW  |         | Prescaler divisor              |
+| PRESCALER_COMP   | 15:8  |  RW  |         | Prescaler compare value        |
 +------------------+-------+------+---------+--------------------------------+
 | REF_CLK_EN_BIT   |  7:7  |  RW  |         | 1= use Refclk for counter,     |
 |                  |       |      |         | 0 = use APB bus clk for counter|
@@ -307,7 +331,10 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 | ENABLE_BIT       |  0:0  |  RW  |         | 1 = enable the counter to count|
 +------------------+-------+------+---------+--------------------------------+
 
-**CFG_REG_HI offset = 0x004**
+CFG_REG_HI 
+~~~~~~~~~~ 
+
+- Address Offset = 0x004
 
 +------------------+-------+------+---------+--------------------------------+
 |     Field        | Bits  | Type | Default |         Description            |
@@ -317,7 +344,7 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 | MODE_MTIME_BIT   | 30:30 |  RW  |         | 1=MTIME mode Changes interrupt |
 |                  |       |      |         | to be >= CMP value             |
 +------------------+-------+------+---------+--------------------------------+
-| PRESCALER_COUNT  | 15:8  |  RW  |         | Prescaler divisor              |
+| PRESCALER_COMP   | 15:8  |  RW  |         | Prescaler compare value        |
 +------------------+-------+------+---------+--------------------------------+
 | REF_CLK_EN_BIT   |  7:7  |  RW  |         | 1= use Refclk for counter,     |
 |                  |       |      |         | 0 = use APB bus clk for counter|
@@ -342,7 +369,10 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 | ENABLE_BIT       |  0:0  |  RW  |         | 1 = enable the counter to count|
 +------------------+-------+------+---------+--------------------------------+
 
-**TIMER_VAL_LO offset = 0x008**
+TIMER_VAL_LO 
+~~~~~~~~~~~~ 
+
+- Address Offset = 0x008
 
 +-----------------+------+------+---------+-----------------------------+
 |     Field       | Bits | Type | Default |        Description          |
@@ -351,7 +381,10 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 |                 |      |      |         | 32-bits in 64-bit mode      |
 +-----------------+------+------+---------+-----------------------------+
 
-**TIMER_VAL_HI offset = 0x00C**
+TIMER_VAL_HI 
+~~~~~~~~~~~~ 
+
+- Address Offset = 0x00C
 
 +-----------------+------+------+---------+-----------------------------+
 |     Field       | Bits | Type | Default |        Description          |
@@ -360,7 +393,10 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 |                 |      |      |         | 32-bits in 64-bit mode      |
 +-----------------+------+------+---------+-----------------------------+
 
-**TIMER_CMP_LO offset = 0x010**
+TIMER_CMP_LO 
+~~~~~~~~~~~~ 
+
+- Address Offset = 0x010
 
 +-----------------+------+------+---------+-----------------------------+
 |     Field       | Bits | Type | Default |        Description          |
@@ -369,7 +405,10 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 |                 |      |      |         | 32-bit counter              |
 +-----------------+------+------+---------+-----------------------------+
 
-**TIMER_CMP_HI offset = 0x014**
+TIMER_CMP_HI 
+~~~~~~~~~~~~ 
+
+- Address Offset = 0x014
 
 +-----------------+------+------+---------+-----------------------------+
 |     Field       | Bits | Type | Default |        Description          |
@@ -378,7 +417,10 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 |                 |      |      |         | 32-bit counter              |
 +-----------------+------+------+---------+-----------------------------+
 
-**TIMER_START_LO offset = 0x018**
+TIMER_START_LO 
+~~~~~~~~~~~~~~ 
+
+- Address Offset = 0x018
 
 +-----------------+------+------+---------+-----------------------------+
 |     Field       | Bits | Type | Default |        Description          |
@@ -387,7 +429,10 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 |                 |      |      |         | starting low counter        |
 +-----------------+------+------+---------+-----------------------------+
 
-**TIMER_START_HI offset = 0x01C**
+TIMER_START_HI 
+~~~~~~~~~~~~~~ 
+
+- Address Offset = 0x01C
 
 +-----------------+------+------+---------+-----------------------------+
 |     Field       | Bits | Type | Default |        Description          |
@@ -396,7 +441,10 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 |                 |      |      |         | starting high counter       |
 +-----------------+------+------+---------+-----------------------------+
 
-**TIMER_RESET_LO offset = 0x020**
+TIMER_RESET_LO 
+~~~~~~~~~~~~~~ 
+
+- Address Offset = 0x020
 
 +-----------------+------+------+---------+-----------------------------+
 |     Field       | Bits | Type | Default |        Description          |
@@ -405,7 +453,10 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 |                 |      |      |         | resetting the low counter   |
 +-----------------+------+------+---------+-----------------------------+
 
-**TIMER_RESET_HI offset = 0x024**
+TIMER_RESET_HI 
+~~~~~~~~~~~~~~ 
+
+- Address Offset = 0x024
 
 +-----------------+------+------+---------+-----------------------------+
 |     Field       | Bits | Type | Default |        Description          |
@@ -417,38 +468,57 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 Firmware Guidelines
 -------------------
 
-
-Configurable datawidth of the Timer:
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-- 32 bit timer:
-
-   - if the MODE_64_BIT is set to '0', It supports 32 bit timer_low and 32 bit timer_high. they can be configured parallelly at the same time.
-   - timer low which has a 32 bit prescaler and 32 bit counter which will have unique input_lo and output_lo interrupt pins.
-   - timer high which has a 32 bit prescaler and 32 bit counter which will have unique input_hi and output_hi interrupt pins.
-
-- 64 bit timer:
-
-   - if the MODE_64_BIT is set to '1', It supports a single 64 bit timer.
-   - the 64 bit timer has a 32 bit prescaler and 64 bit counter. The FW has to drive low timer related input pins and registers.
-   - The output interrupt will be driven in the dedicated pins for timer low.
-
-Modes of Timer:
+Initialization:
 ~~~~~~~~~~~~~~~
-- One shot mode:
+- When the HRESETn signal is low, CSRs default to 0 and outputs are low.
+- At every positive edge of the clock the CSR CSRs are updated based on APB signals.
+- FW can update the below bitfields to any custom value before START bitfield in the REG_TIM[0-3]_CMD CSR is set to '1' and the timer is not active yet (which means the timer is started for the first time). Otherwise, all the config values of all sub-modules are commanded to be updated to default .
 
-   - For 32-bit timer, the timer will be disabled when the timer low count reaches the target count for the first time. Similar operation is done for the timer high.
-   - For 64-bit timer, The timer will be disabled when the timer low count reaches 0xFFFFFFFF and the timer high count reaches target count for the first time.
+  - The PRESCALER_COUNT, PRESCALER_EN_BIT bitfields of CFG_REG_LO or CFG_REG_HI.
 
-- Compare clear mode:
+  - The MODE_64_BIT, MODE_MTIME_BIT and REF_CLK_EN_BIT bitfields of CFG_REG_LO or CFG_REG_HI.
+ 
+  - The IEM_BIT, IRQ_BIT, ONE_SHOT_BIT and CMP_CLR_BIT bitfields of CFG_REG_LO or CFG_REG_HI.
 
-   - 32 bit Timer: 
-      - When the the timer count reaches the target count, the timer is not disbaled instead timer count will be reset to '0'. 
-      - As the timer is still enabled, the timer count will be increement by '1' for every positive edge of the clock until it reaches the target count.
-      - The same process is repeated.
-   - 64 bit Timer: 
-      - When the timer low count reaches 0xFFFFFFFF and the timer high count reaches target count, the timer is not disbaled instead timer low count and timer high count will be resetted to '0'. 
-      - As the timer low and timer high are still enabled, the timer low count will be increement by '1' for every positive edge of the clock until timer low count reaches 0xFFFFFFFF and the timer high count reaches target count.
-      - The same process is repeated.  
+  - The TIMER_VAL_LO and TIMER_VAL_HI CSRs 
+
+  - The TIMER_CMP_LO and TIMER_CMP_HI CSRs.
+
+Start the timer:
+~~~~~~~~~~~~~~~~
+- FW initialization is performed.
+- stop_timer_i should be set to '0'.
+- Timer can be started in the following 3 ways:
+   - when ENABLE_BIT of CFG_REG_LO or CFG_REG_HI is '1'.
+   - when event_lo_i or event_hi_i signal is '1' and IEM_BIT of CFG_REG_LO or CFG_REG_HI is '1'.
+   - when TIMER_START_LO or TIMER_START_HI is set to any value other than '0'.
+- Once the timer is started FW can observe the counter value getting incremented in the TIMER_VAL_LO or TIMER_VAL_HI CSR.
+
+Stop the timer:
+~~~~~~~~~~~~~~~~
+- FW initialization is performed.
+- Timer is started by above method.
+- Timer can be stopped in the following 2 ways:
+   - when ENABLE_BIT of CFG_REG_LO or CFG_REG_HI is '0'.
+   - when stop_timer_i is set to '0'.
+- Once the timer is stopped FW can observe the counter value remain the same in the TIMER_VAL_LO or TIMER_VAL_HI CSR.
+
+Reset the timer:
+~~~~~~~~~~~~~~~~
+- FW initialization is performed.
+- Timer is started by above method.
+- Timer can be resetted in the following 2 ways:
+   - When the RESET_BIT in the CFG_REG_LO or CFG_REG_HI CSR is set to '1'.
+   - When the RESET_LO in the TIMER_RESET_LO or TIMER_RESET_HI CSR is set to '1'.
+- Once the timer is stopped FW can observe the counter value resetted to '0' in the TIMER_VAL_LO or TIMER_VAL_HI CSR.
+
+
+Interrupt generation:
+~~~~~~~~~~~~~~~~~~~~~
+- FW initialization is performed.
+- IRQ_BIT is set to '1' in the CFG_REG_LO or CFG_REG_HI CSR
+- Timer is started by above method.
+- irq_lo_o or irq_hi_o is set to '1' when the counter value of timer_lo or timer_hi reaches the TIMER_CMP_LO or TIMER_CMP_HI.
 
 
 Pin Diagram
