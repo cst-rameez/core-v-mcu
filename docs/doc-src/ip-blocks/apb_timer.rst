@@ -20,7 +20,7 @@
 APB Timer
 =========
 
-APB Timer supports two 32 bit Timer or one 64 bit Timer. Core-V-MCU can configure the APB_Timer to genrate output interrupts after N number of clock cyles.
+APB Timer supports two 32 bit Timer or one 64 bit Timer. Core-V-MCU can configure the APB Timer to genrate output interrupts after N number of clock cyles.
 
 Features
 ---------
@@ -46,7 +46,7 @@ Features
 Architecture
 ------------
 
-Block Diagram of APB_Timer:
+Block Diagram of APB Timer:
 
 .. image:: apb_timer_block_diagram.png
    :width: 5in
@@ -240,16 +240,16 @@ System Architecture:
 The figure below depicts the connections between the APB TIMER and rest of the modules in Core-V-MCU:-
 
 .. figure:: apb_timer_soc_connections.png
-   :name: APB_TIMER_SoC_Connections
+   :name: APB Timer SoC Connections
    :align: center
    :alt:
 
    APB TIMER Core-V-MCU connections diagram
 
-- The event_lo_i and event_hi_i input to the APB_TIMER is provided by APB_EVENT_GENERATOR. 
-- APB_TIMER process this input signals based on the various CSR configurations.
-- APB_TIMER generate few output event signals that are further passed as interrupts to the Core complex.
-- APB_TIMER receives the input stop_timer_i from core complex that can stop the operations of APB TIMER.
+- The event_lo_i and event_hi_i input to the APB Timer is provided by APB_EVENT_GENERATOR. 
+- APB Timer process this input signals based on the various CSR configurations.
+- APB Timer generate few output event signals that are further passed as interrupts to the Core complex.
+- APB Timer receives the input stop_timer_i from core complex that can stop the operations of APB TIMER.
 
 Programmers View:
 -----------------
