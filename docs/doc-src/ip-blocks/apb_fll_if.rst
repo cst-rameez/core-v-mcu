@@ -17,280 +17,426 @@
    ^^^^^^^
 .. _apb_fll_if:
 
-**APB FLL:-**
+APB PLL
+=======
 
--  Core-V-MCU contains 3 FLLs. One FLL is meant for generating the clock
-      for the peripheral domain, one for the core domain (core,
-      memories, event unit etc) and one is meant for the cluster. The
-      latter is not used. All the FLLs can be bypassed by writing to the
-      JTAG register before the reset signal is asserted.
+APB PLL generates four clock signals which can be configured independently for a unique output. 
 
-.. image:: apb_fll_if_image.png
-   :width: 6.5in
-   :height: 2.97222in
+Features
+---------
+-  Multiple output clock generation
 
-**APB FLL Interface CSRs**
-==========================
+   - SOC clock
+   - Peripheral clock
+   - Cluster clock
+   - Reference clock 
 
-The FLL interface is accessed at APB Base address 0x1a100000. Nine
-32-bit registers are used to control the FLL and the clock divisors.
+-  Configurable divisor for each output clock
 
-+-------------+-------------+-----------------------------------------+
-| **OFFSET**  | **Register**| **Description**                         |
-|             |             |                                         |
-+=============+=============+=========================================+
-| 0x0         | CTL         | PLL Configuration Control               |
-+-------------+-------------+-----------------------------------------+
-| 0x4         | DIV         | PLL Divisor Control                     |
-+-------------+-------------+-----------------------------------------+
-| 0x8         | FRAC        | PLL Fractional Control                  |
-+-------------+-------------+-----------------------------------------+
-| 0xC         | SS1         | PLL Spread Spectrum Control 1           |
-+-------------+-------------+-----------------------------------------+
-| 0x10        | SS2         | PLL Spread Spectrum Control 2           |
-+-------------+-------------+-----------------------------------------+
-| 0x14        | SOC         | SOC Clock Divisor                       |
-+-------------+-------------+-----------------------------------------+
-| 0x18        | PERIPH      | Peripheral Clock Divisor                |
-+-------------+-------------+-----------------------------------------+
-| 0x1C        | FPGA        | FPGA Clock Divisor                      |
-+-------------+-------------+-----------------------------------------+
-| 0x20        | REF         | Reference Clock Divisor                 |
-+-------------+-------------+-----------------------------------------+
+-  Configurable bypass mode
 
-**FLL_CTL offset = 0x00**
--------------------------
 
-Default Value = 0x300103
+Architecture
+------------
+
+Block Diagram of APB PLL:
+
+.. image:: apb_pll_block_diagram.png
+   :width: 5in
+   :height: 2.38889in
+
+- The APB PLL consists of the following key components:
+- APB control logic, APB PLL CSRs, PLL Top, 4 clock dividers and 3 multiplexers.
+
+APB control logic
+~~~~~~~~~~~~~~~~~
+The APB control logic interfaces with the APB bus to decode and execute commands.
+It handles CSR reads and writes according to the APB protocol, providing a standardized interface to the system.
+
+APB PLL CSRs
+~~~~~~~~~~~~
+
+- APB PLL CSRs store the following configurations  
+
+  - Peripheral divisor, eFPGA divisor, SOC divisor and Reference clock divisor.
+  - Reset and Bypass. 
+  - Mode, Lock, Power down, PLL divisor power down.
+  - Feedback divisor and Output divisor.
+  - PLL fractional part, PLL spread spectrum step and modulation frequency.
+
+Introduction
+^^^^^^^^^^^^^
+- APB PLL module's main objective is to generate output clock signal based on the ref_clk_i provided.
+- APB PLL has various submodules/components like PLL TOP, cascaded divider and mux for peripheral clock, cascaded divider and mux for soc clock, cascaded divider and mux for eFPGA clock.
+- Timer controller manages all the other submodules through few control signals like active, controller reset and update.
+- FW performs Initialization and drives various configuration CSR. 
+
+PLL TOP 
+^^^^^^^
+- PLL TOP generats output clock which acts as the input to the cascaded divider and mux.
+- PLL TOP takes BYPASS and ref_clk_i as input and process it accordingly
+- When the BYPASS bitfield is '1' then output clock is driven by the ref_clk_i clock.
+- When the BYPASS bitfield is '0' then output clock is driven by the time period of 2.5 times the unit of time.
+
+Cascaded divider and mux 
+^^^^^^^^^^^^^^^^^^^^^^^^^
+- Cascaded divider and mux combinations are used to generate various clock signals for peripheral, soc and core domains. 
+- Input signal from PLL TOP is provided to each of these 3 Cascaded divider and mux combinations to get 3 unique output clock siganls.
+- Working of the cascaded divider and mux is same for all the 3 cases. 
+
+Divider:
+^^^^^^^^
+- Divider reduces the clock frequency by the DIV value times the original frequency.
+- Divider receives input from the PLL TOP and provides the output scaled down clock signal to the mux or multiplexer.
+- For each divider, the frequency is reduced by the number of times mentioned in the DIV bitfield of respective register.
+      
+Multiplexer or Mux:
+^^^^^^^^^^^^^^^^^^^
+- Multiplexer selects the output signal to be generated for each domain depening on BYPASS bitfield of REG_CTL register.
+- It takes two input clocks, One input clock is received from the divider and other input clock is ref_clk_i.
+- When the BYPASS bitfield is '1' then output clock is driven by the ref_clk_i clock.
+- When the BYPASS bitfield is '0' then output clock is driven by the clock received from the divider.
+
+
+System Architecture:
+--------------------
+
+The figure below depicts the connections between the APB PLL and rest of the modules in Core-V-MCU:-
+
+.. figure:: apb_pll_soc_connections.png
+   :name: APB PLL SoC Connections
+   :align: center
+   :alt:
+
+   APB PLL Core-V-MCU connections diagram
+
+- The ref_clk_i is provided by the external devices through soc peripherals.
+- This clock signal can be scaled using various CSR configurations.
+- APB PLL generates various clock signals for the following 
+   -  Peripheral domain
+   -  Core domain (core, memories, event unit etc) 
+   -  Cluster or the eFPGA domain
+   -  Reference clock for all the above domains when they are bypassed.
+
+
+Programmers View:
+-----------------
+
+Initial Configurations:
+~~~~~~~~~~~~~~~~~~~~~~~
+There are CSR bitfields in the APB PLL that are required to be configured before any operations are initiated. 
+
+-  Peripheral divisor of APB PLL by configuring the P_DIV in PERIPH_DIV.
+-  SOC divisor of APB PLL by configuring the S_DIV bitfields of SOC_DIV register.
+-  eFPGA divisor of APB PLL by configuring the F_DIV bitfields of CLUSTER_DIV register.
+-  reference divisor of APB PLL by configuring the R_DIV bitfields of REF_DIV register..
+-  Mode selection of APB PLL by configuring the MODE in REG_CTL CSR.
+-  Locked or unlocked by configuring the LOCK in in REG_CTL CSR.
+-  Power down by configuring the PD in REG_CTL CSR.
+-  Divisor Power down by configuring the PDDP in REG_CTL CSR.
+
+Control configurations/operations:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There are CSR bitfields in the APB PLL which controls operations 
+
+- set the BYPASS in REG_CTL so that APB_PLL can bypass the domain clock signals and provide reference clock as input.
+- set the RESET in REG_CTL so that APB_PLL can be resetted.
+
+Status configurations:
+~~~~~~~~~~~~~~~~~~~~~~
+
+The status of the clock ouputs are provided by the following pins
+
+- soc_clk_o, periph_clk_o, cluster_clk_o and ref_clk_o pins are used to provide the status of APB PLL output clock signals.
+
+APB FLL CSRs
+------------
+
+REG_CTL
+~~~~~~~
+
+- Address Offset = 0x00
 
 +----------+------+-------+------------+---------------------------------+
-| **Field**| **Bi | **T   | **Default**|         **Description**         |
-|          | ts** | ype** |            |                                 |
+|   Field  |   Bi |   T   |   Default  |           Description           |
+|          | ts   | ype   |            |                                 |
 +==========+======+=======+============+=================================+
-| LOCK     | 31   | R     |            | PLL Lock 1 = Locked, 0 = Not    |
-|          |      |       |            | Locked                          |
+| LOCK     | 31:31| R     |            | PLL Lock                        |
+|          |      |       |            |                                 |
+|          |      |       |            | 1= Locked,                      |
+|          |      |       |            |                                 |
+|          |      |       |            | 0= Unlocked                     |
 +----------+------+-------+------------+---------------------------------+
-| PDDP     | 25   | RW    | 1          | PLL Divisor Power Down 1=Power  |
-|          |      |       |            | Down, 0=Normal Operation        |
+| RSVD3    | 30:26| RW    | 0          | Reserved 3                      |
+|          |      |       |            |                                 |
 +----------+------+-------+------------+---------------------------------+
-| PD       | 24   | RW    | 1          | PLL Power Down 1=Power Down,    |
+| PDDP     | 25:25| RW    | 1          | PLL Divisor Power Down          |
+|          |      |       |            |                                 |
+|          |      |       |            | 1=Power Down,                   |
+|          |      |       |            |                                 |
 |          |      |       |            | 0=Normal Operation              |
 +----------+------+-------+------------+---------------------------------+
-| MODE     | 1    | RW    | 0          | MODE 0=Normal, 1=Fractional,    |
-|          | 7:16 |       |            | 2=SpreadSpectrum, 3=Reserved    |
+| PD       | 24:24| RW    | 1          | PLL Power Down                  |
+|          |      |       |            |                                 |
+|          |      |       |            | 1=Power Down,                   |
+|          |      |       |            |                                 |
+|          |      |       |            | 0=Normal Operation              |
 +----------+------+-------+------------+---------------------------------+
-| DM       | 13:8 | RW    | 1          | Reference Clock Divisor values  |
-|          |      |       |            | = 1-63                          |
+| RSVD2    | 23:18| RW    | 0          | Reserved 2                      |
+|          |      |       |            |                                 |
 +----------+------+-------+------------+---------------------------------+
-| RESET    | 1    | RW    | 1          | PLL Reset 1 = Reset, 0 = Normal |
-|          |      |       |            | operation                       |
+| MODE     | 17:16| RW    | 0          | MODE                            |
+|          |      |       |            |                                 |
+|          |      |       |            | 0=Normal,                       |
+|          |      |       |            |                                 |
+|          |      |       |            | 1=Fractional,                   |
+|          |      |       |            |                                 |
+|          |      |       |            | 2=SpreadSpectrum,               |
+|          |      |       |            |                                 |
+|          |      |       |            | 3=Reserved                      |
 +----------+------+-------+------------+---------------------------------+
-| BYPASS   | 0    | RW    | 1          | PLL/Divisor Bypass, 1 = all     |
+| RSVD1    | 15:14| RW    | 0          | Reserved 1                      |
+|          |      |       |            |                                 |
++----------+------+-------+------------+---------------------------------+
+| DM       | 13:8 | RW    | 1          | Reference Clock Divisor         |
+|          |      |       |            |                                 |
++----------+------+-------+------------+---------------------------------+
+| RSVD0    | 7:2  | RW    | 0          | Reserved 0                      |
+|          |      |       |            |                                 |
++----------+------+-------+------------+---------------------------------+
+| RESET    | 1:1  | RW    | 1          | PLL Reset                       |
+|          |      |       |            |                                 |
+|          |      |       |            | 1 = Reset                       |
+|          |      |       |            |                                 |
+|          |      |       |            | 0 = Normal Operation            |
++----------+------+-------+------------+---------------------------------+
+| BYPASS   | 0:0  | RW    | 1          | PLL/Divisor Bypass, 1 = all     |
+|          |      |       |            |                                 |
+|          |      |       |            | 1 = all                         |
 |          |      |       |            | clocks are Reference Clock      |
 +----------+------+-------+------------+---------------------------------+
 
-.. _section-1:
 
-.. _section-2:
+REG_DIV   
+~~~~~~~
 
-.. _section-3:
-
-.. _section-4:
-
-**FLL_DIV offset = 0x04**
--------------------------
-
-Default Value = 0xA00004
+- Address Offset = 0x04
 
 +-------+------+------+--------+-------------------------------------+
-| **Fi  | **Bi | **Ty | **Def  | **Description**                     |
-| eld** | ts** | pe** | ault** |                                     |
+|   Fi  |   Bi |   Ty |   Def  |   Description                       |
+| eld   | ts   | pe   | ault   |                                     |
 +=======+======+======+========+=====================================+
+| RSVD1 | 31:27| RW   | 0      | Reserved 1                          |
+|       |      |      |        |                                     |
++-------+------+------+--------+-------------------------------------+
 | DN    | 2    | RW   | 0xa0   | PLL Feedback Divisor (0xa0 = PLL at |
 |       | 6:16 |      |        | 1.6GHz)                             |
++-------+------+------+--------+-------------------------------------+
+| RSVD0 | 15:3 | RW   | 0      | Reserved 0                          |
+|       |      |      |        |                                     |
 +-------+------+------+--------+-------------------------------------+
 | DP    | 2:0  | RW   | 0x4    | PLL Output Divisor (0x4 = 400MHz    |
 |       |      |      |        | CLK0)                               |
 +-------+------+------+--------+-------------------------------------+
 
-.. _section-5:
+REG_FRAC   
+~~~~~~~~
 
-**FLL_FRAC offset = 0x08**
---------------------------
-
-Default Value = 0x0
+- Address Offset = 0x08
 
 +---------+-------+--------+------------+------------------------------+
-| **F     | **B   | **T    | **Default**| **Description**              |
-| ield**  | its** | ype**  |            |                              |
+|   F     |   B   |   T    |   Default  |   Description                |
+| ield    | its   | ype    |            |                              |
 +=========+=======+========+============+==============================+
+| RSVD0   |31:24  | RW     | 0          | Reserved 0                   |
+|         |       |        |            |                              |
++---------+-------+--------+------------+------------------------------+
 | FRAC    | 23:0  | RW     | 0x00       | PLL Fractional part of DN    |
 +---------+-------+--------+------------+------------------------------+
 
-.. _section-6:
+REG_SS1  
+~~~~~~~
 
-**FLL_SS1 offset = 0x0C**
--------------------------
-
-Default Value = 0x0
+- Address Offset = 0x0C
 
 +--------+-------+--------+----------+-------------------------------+
-| **F    | **B   | **     | **D      | **Description**               |
-| ield** | its** | Type** | efault** |                               |
+|   F    |   B   |        |   D      |   Description                 |
+| ield   | its   | Type   | efault   |                               |
 +========+=======+========+==========+===============================+
+| RSVD0  | 31:11 | RW     | 0        | Reserved 0                    |
+|        |       |        |          |                               |
++--------+-------+--------+----------+-------------------------------+
 | SRATE  | 10:0  | RW     | 0x00     | PLL Spread Spectrum Triangle  |
 |        |       |        |          | modulation Frequency          |
 +--------+-------+--------+----------+-------------------------------+
 
-.. _section-7:
 
-**FLL_SS2 offset = 0x10**
--------------------------
+REG_SS2  
+~~~~~~~
 
-Default Value = 0x0
+- Address Offset = 0x10
 
 +-----------+-------+-------+----------+------------------------------+
-| **Field** | **B   | **T   | **D      | **Description**              |
-|           | its** | ype** | efault** |                              |
+|   Field   |   B   |   T   |   D      |   Description                |
+|           | its   | ype   | efault   |                              |
 +===========+=======+=======+==========+==============================+
+| RSVD0     |31:24  | RW    | 0        | Reserved 0                   |
+|           |       |       |          |                              |
++-----------+-------+-------+----------+------------------------------+
 | SSLOPE    | 23:0  | RW    | 0x00     | PLL Spread Spectrum Step     |
 +-----------+-------+-------+----------+------------------------------+
 
-.. _section-8:
+REG_SOC  
+~~~~~~~
 
-**SOC_DIV offset = 0x14**
--------------------------
-
-Default Value = 0x0
+- Address Offset = 0x14
 
 +---------+-------+--------+-----------+------------------------------+
-| **      | **B   | **     | **        | **Description**              |
-| Field** | its** | Type** | Default** |                              |
+|         |   B   |        |           |   Description                |
+| Field   | its   | Type   | Default   |                              |
 +=========+=======+========+===========+==============================+
-| S_DIV   | 9:0   | RW     | 0x00      | SOC clock Divisor 0,1 = 1    |
+| RSVD0   |31:10  | RW     | 0         | Reserved 0                   |
+|         |       |        |           |                              |
++---------+-------+--------+-----------+------------------------------+
+| S_DIV   | 9:0   | RW     | 0x00      | SOC clock Divisor            |
 +---------+-------+--------+-----------+------------------------------+
 
-.. _section-9:
 
-**PERIPH_DIV offset = 0x18**
-----------------------------
+REG_PERIPH  
+~~~~~~~~~~
 
-Default Value = 0x0
+- Address Offset = 0x18
 
 +--------+------+-------+----------+---------------------------------+
-| **F    | **Bi | **T   | **D      | **Description**                 |
-| ield** | ts** | ype** | efault** |                                 |
+|   F    |   Bi |   T   |   D      |   Description                   |
+| ield   | ts   | ype   | efault   |                                 |
 +========+======+=======+==========+=================================+
-| P_DIV  | 9:0  | RW    | 0x00     | Peripheral clock Divisor 0,1 =  |
-|        |      |       |          | 1                               |
+| RSVD0  |31:10 | RW    | 0        | Reserved 0                      |
+|        |      |       |          |                                 |
++--------+------+-------+----------+---------------------------------+
+| P_DIV  | 9:0  | RW    | 0x00     | Peripheral clock Divisor        |
 +--------+------+-------+----------+---------------------------------+
 
-.. _section-10:
 
-**FPGA_DIV offset = 0x1C**
---------------------------
+REG_CLUSTER  
+~~~~~~~~~~~
 
-Default Value = 0x0
+- Address Offset = 0x1C
 
 +---------+------+--------+----------+-------------------------------+
-| **      | **Bi | **     | **D      | **Description**               |
-| Field** | ts** | Type** | efault** |                               |
+|         |   Bi |        |   D      |   Description                 |
+| Field   | ts   | Type   | efault   |                               |
 +=========+======+========+==========+===============================+
-| F_DIV   | 9:0  | RW     | 0x00     | FPGA clock Divisor 0,1 = 1    |
+| RSVD0   |31:10 | RW     | 0        | Reserved 0                    |
+|         |      |        |          |                               |
++---------+------+--------+----------+-------------------------------+
+| F_DIV   | 9:0  | RW     | 0x00     | FPGA clock Divisor            |
 +---------+------+--------+----------+-------------------------------+
 
-.. _section-11:
 
-**REF_DIV offset = 0x20**
--------------------------
+REG_REF  
+~~~~~~~
 
-Default Value = 0x0
+- Address Offset = 0x20
 
 +-------+------+-------+----------+----------------------------------+
-| **Fi  | **Bi | **T   | **D      | **Description**                  |
-| eld** | ts** | ype** | efault** |                                  |
+|   Fi  |   Bi |   T   |   D      |   Description                    |
+| eld   | ts   | ype   | efault   |                                  |
 +=======+======+=======+==========+==================================+
+| RSVD0 |31:10 | RW    | 0        | Reserved 0                       |
+|       |      |       |          |                                  |
++-------+------+-------+----------+----------------------------------+
 | R_DIV | 9:0  | RW    | 0x28     | Reference clock Divisor          |
 |       |      |       |          | 0x28=250KHz Refclock             |
 +-------+------+-------+----------+----------------------------------+
 
-**Theory of operaion:-**
 
--  **Inputs:-**
+Firmware Guidelines
+-------------------
 
-   -  ref_clk_i - Reference clock input
+Initialization:
+~~~~~~~~~~~~~~~
+- When the HRESETn signal is low, CSRs default to 0 and outputs are low.
+- At every positive edge of the clock the CSR CSRs are updated based on APB signals.
+- FW can update the below bitfields to any custom value before ref_clk_i is triggered. Otherwise, all the config values of CSRs to be updated to default.
 
-   -  rst_ni - To reset the clock divisors and demultiplexers
+  - The S_DIV bitfields of SOC_DIV register.
 
-   -  HCLK -clock for the read and write on the registers
+  - The F_DIV bitfields of CLUSTER_DIV register.
 
-   -  HRESETn - To reset the registers
+  - The P_DIV bitfields of PERIPH_DIV register.
 
-   -  APB bus signals -Set of APB bus signals
+  - The R_DIV bitfields of REF_DIV register.
 
--  **Outputs:-**
 
-   -  soc_clk_o - clock for the core soc domain
+Output clock generation of the APB_PLL:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- FW initialization is performed.
+- ref_clk_i is triggered.
+- FW can observe the following APB_PLL generated output clock signals:
+   - soc_clk_o
+   - periph_clk_o
+   - cluster_clk_o
+   - ref_clk_o
 
-   -  periph_clk_o - clock for the peripheral domain
 
-   -  cluster_clk_o - clock for the cluster/FPGA domain
+Bypass the domain clock signals:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- FW initialization is performed.
+- APB PLL is working to generate output clock signals by above method.
+- if the BYPASS bitfield is set to '1' then all the domain output clock signals are driven by the ref_clk_i.
 
-   -  ref_clk_o - reference clock which is taken as input
+Reset the APB PLL:
+~~~~~~~~~~~~~~~~~~
+- FW initialization is performed.
+- APB PLL is working to generate output clock signals by above method.
+- APB PLL can be resetted in the following 3 ways:
+   - RESET bitfield in the register REG_CTL is '1'
+   - HRESETn pin is low.
+   - rst_ni is low.
+- Once the APB PLL is resetted then no output clocks are generated.
 
--  **Inouts:-**
 
-   -  AVDD, AVDD2,AVSS,VDDC,VSSC
 
--  There are a set of 9 32 bit registers used to control the PLL and
-      clock divisors.
+Pin Diagram
+-----------
 
--  When HRESETn is low,all the registers are reset to default values
-      where control register value is 32'h03000103 and divisor register
-      value is 32'h00A00004,remaining registers are assigned 0.
+The figure below represents the input and output pins for the APB PLL:-
 
-..
+.. figure:: apb_pll_pin_diagram.png
+   :name: APB_PLL_Pin_Diagram
+   :align: center
+   :alt:
+   
+   APB PLL Pin Diagram
 
-   **READ/WRITE into the register:-**
+Clock and Reset Signals
+~~~~~~~~~~~~~~~~~~~~~~~
+  - HCLK: System clock input
+  - HRESETn: Active-low reset input
 
--  The PLL IP will be in IDLE mode generally.To write or read into the
-      registers ,first PSEL and PENABLE should be made high.So at every
-      positive clock edge of HCLK,if both PSEL and PENABLE are high then
-      based on whether PWRITE is low or high, PLL IP is changed to READ
-      or WRITE mode so that in next clock cycle read or write operation
-      happen based on the mode and the PLL mode is changed to default
-      IDLE mode after the end of the operation.
+APB Interface Signals
+~~~~~~~~~~~~~~~~~~~~~
+  - PADDR[11:0]: APB address bus input
+  - PSEL: APB peripheral select input
+  - PENABLE: APB enable input
+  - PWRITE: APB write control input (high for write, low for read)
+  - PWDATA[31:0]: APB write data bus input
+  - PREADY: APB ready output to indicate transfer completion
+  - PRDATA[31:0]: APB read data bus output
+  - PSLVERR: APB slave error
 
-..
-
-   **Supply of the reference clock to the divisors:-**
-
--  Here if RESET register is high or HRESETn pin is low then ,the PLL is
-      in reset mode(So no outputs are generated).
-
--  If rst_ni is made low,then also there will be no outputs(all the
-      outputs will be low).
-
--  If the control register BYPASS is high ,then it is in bypass mode
-      ,where the domain clocks of soc,peripherals,and cluster will be
-      the reference clock (ref_clk_i) instead of the divisor clock.
-
--  When BYPASS register is low, the domain clocks are generated from the
-      reference clock instead of directly passing the reference
-      clock.The generation of domain clocks happen based on the
-      registers value SOC_DIV,PERIPH_DIV,CLUSTER_DIV and REF_DIV .For
-      each divisor the ref clock frequency is reduced by the number of
-      times mentioned in the respective register and that frequency
-      reduced clock is the divisor clock.For example, for soc domain
-      ,the reference clock frequency is reduced by SOC_DIV times and
-      produced clock is the soc domain clock.
-
-..
-
-   **How the the transition from divisor clock to ref clock happens when
-   BYPASS is made high**
-
--  Whenever the BYPASS is made high from low,then the respective divisor
-      clock for the domain is stopped as output after completing the
-      next clock cycle and the ref clock starts from there as the domain
-      clock .
+APB PLL Interface Signals
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+  - ref_clk_i: Reference clock input
+  - rst_ni: Reset the clock dividers and multiplexers
+  - soc_clk_o: Output clock for the core soc domain
+  - periph_clk_o: Output clock for the peripheral domain
+  - cluster_clk_o: Output clock for the cluster/eFPGA domain
+  - ref_clk_o: Output reference clock
+  - AVDD: Bidirectional voltage AVDD
+  - AVDD2: Bidirectional voltage AVDD2
+  - AVSS: Bidirectional voltage AVSS
+  - VDDC: Bidirectional voltage VDDC
+  - VSSC: Bidirectional voltage VSSC 

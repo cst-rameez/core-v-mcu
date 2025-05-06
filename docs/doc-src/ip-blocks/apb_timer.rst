@@ -79,7 +79,7 @@ Inroduction
 - FW performs Initialization and drives various configuration CSR. 
 - Once start is issued, Timer counts from initial value till it reaches the target value and generates an output interrupt.
 - If the prescaler is also enabled, prescaler and timer works in the cascaded manner. when the prescaler_lo_target_reached is set to '1', Timer is enabled and the Timer Counter is increemented by '1'.
-- Assusming Initial value of Timer Counter is '0'. then it will reach to N, if prescaler_lo_target_reached is issued N times by the prescaler.
+- Assuming Initial value of Timer Counter is '0'. then it will reach to N, if prescaler_lo_target_reached is issued N times by the prescaler.
 
 Control signal for Timer
 ~~~~~~~~~~~~~~~~~~~~~~~~
