@@ -560,10 +560,10 @@ Interrupt generation:
 Pin Diagram
 -----------
 
-The figure below represents the input and output pins for the APB Advanced Timer:-
+The figure below represents the input and output pins for the APB Timer:-
 
 .. figure:: apb_timer_pin_diagram.png
-   :name: APB_Advanced_Timer_Pin_Diagram
+   :name: APB_Timer_Pin_Diagram
    :align: center
    :alt:
    

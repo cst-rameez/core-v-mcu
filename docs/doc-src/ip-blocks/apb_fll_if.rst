@@ -54,9 +54,11 @@ APB PLL Components
 ~~~~~~~~~~~~~~~~~~~~~~
 
 - The APB PLL consists of the following key components: 
+
    - PLL_TOP: it is generates the initial clock which is processed further by Divider and Multiplexer.
-   - Cascaded divider and mux : A set of 3 Cascadded divider and mux is supported which generates 3 unique output clocks.  
-      - Divider : It scales up the input frequency by the configured CSR values. 
+   - Cascaded divider and mux : A set of 3 Cascadded divider and mux is supported which generates 3 unique output clocks. 
+
+      - Divider : It scales down the input frequency by the configured CSR values. 
       - Multiplexer : It selects the appropirate output clock as per the configured CSR values.
 
 PLL TOP 
@@ -76,22 +78,29 @@ Divider:
 ^^^^^^^^
 - Divider reduces the clock frequency by the DIV value times the original frequency.
 - Divider receives input from the PLL TOP and provides the output scaled down clock signal to the mux or multiplexer.
-- For each divider, the frequency is increased by the number of times mentioned in the DIV bitfield of respective register.
-- DIV (Clock divisor values)
+- For each divider, the frequency is scaled down by the number of times mentioned in the DIV bitfield of respective CSR.
+- DIV (Clock divisor values):
+
    - If the DIV bitfield value is either 0 or 1, then the output clock itself is not geenrated.
    - If the DIV bitfield value is 2, then the output clock is same as the input clock.
    - If the DIV bitfield value is in the range of (0x3 to 0x1FF), then the output clock is generated according to the below formulas.
+
 - Frequency Calculation: 
-   - Output Clock Frequency = Input Clock Frequency * (DIV bitfield)
+
+   - Output Clock Frequency = Input Clock Frequency / (DIV bitfield)
+
 - Time Period Calculation: 
-   - Output Clock Time Period = Input Clock Time Period / (DIV bitfield)
-- For example, if the Input clock ferquency is 250 KHz and the Div bitfield is 0x28
-   - Output Clock ferquency = 250 KHz * 0x28 = 10 MHz
-   - Output Clock Period = 1 /(0x28 * (250 * 10^3)) = 100 ns
+
+   - Output Clock Time Period = Input Clock Time Period * (DIV bitfield)
+
+- For example, if the Input clock ferquency is 200 MHz and the Div bitfield is 0x28
+
+   - Output Clock ferquency = 200 MHz / 0x28 = 5 MHz
+   - Output Clock Period = (1 / (200 * 10^6)) * 0x28 = 200 ns
 
 Multiplexer or Mux:
 ^^^^^^^^^^^^^^^^^^^
-- Multiplexer selects the output signal to be generated for each domain depening on BYPASS bitfield of REG_CTL register.
+- Multiplexer selects the output signal to be generated for each domain depening on BYPASS bitfield of REG_CTL CSR.
 - It takes two input clocks, One input clock is received from the divider and other input clock is ref_clk_i.
 - When the BYPASS bitfield is '1' then output clock is driven by the ref_clk_i clock.
 - When the BYPASS bitfield is '0' then output clock is driven by the clock received from the divider.
@@ -117,6 +126,7 @@ The figure below depicts the connections between the APB PLL and rest of the mod
 - The ref_clk_i is provided by the external devices through soc peripherals.
 - This clock signal can be scaled using various CSR configurations.
 - APB PLL generates various clock signals for the following 
+
    -  Peripheral domain
    -  Core domain (core, memories, event unit etc) 
    -  Cluster or the eFPGA domain
@@ -242,7 +252,7 @@ REG_DIV
 | DN        | 26:16 |  RW    |   0xa0  | PLL Feedback Divisor         |
 |           |       |        |         | (0xa0 = PLL at1.6GHz)        |
 |           |       |        |         |                              |
-|           |       |        |         | **Feature not implemented**  |                    |
+|           |       |        |         | **Feature not implemented**  |                    
 +-----------+-------+--------+---------+------------------------------+
 | RSVD1     | 15:3  |  RW    |   0x0   | Reserved 0                   |
 |           |       |        |         |                              |
@@ -421,13 +431,13 @@ Initialization:
 - At every positive edge of the clock the CSR CSRs are updated based on APB signals.
 - FW can update the below bitfields to any custom value as per their description before ref_clk_i is triggered. Otherwise, all the config values of CSRs to be updated to default.
 
-  - The S_DIV bitfields of SOC_DIV register. 
+  - The S_DIV bitfields of SOC_DIV CSR. 
 
-  - The F_DIV bitfields of CLUSTER_DIV register.
+  - The F_DIV bitfields of CLUSTER_DIV CSR.
 
-  - The P_DIV bitfields of PERIPH_DIV register.
+  - The P_DIV bitfields of PERIPH_DIV CSR.
 
-  - The R_DIV bitfields of REF_DIV register.
+  - The R_DIV bitfields of REF_DIV CSR.
 
 
 Output clock generation of the APB_PLL:
@@ -435,6 +445,7 @@ Output clock generation of the APB_PLL:
 - FW initialization is performed.
 - ref_clk_i is triggered.
 - FW can observe the following APB_PLL generated output clock signals:
+
    - soc_clk_o
    - periph_clk_o
    - cluster_clk_o
@@ -452,7 +463,8 @@ Reset the APB PLL:
 - FW initialization is performed.
 - APB PLL is working to generate output clock signals by above method.
 - APB PLL can be resetted in the following 3 ways:
-   - RESET bitfield in the register REG_CTL is '1'
+
+   - RESET bitfield in the CSR REG_CTL is '1'
    - HRESETn pin is low.
    - rst_ni is low.
 - Once the APB PLL is resetted then no output clocks are generated.
@@ -473,30 +485,30 @@ The figure below represents the input and output pins for the APB PLL:-
 
 Clock and Reset Signals
 ~~~~~~~~~~~~~~~~~~~~~~~
-  - HCLK: System clock input. This is driven by the soc_clk_o.
-  - HRESETn: Active-low reset input
+- HCLK: System clock input. It is driven by the soc_clk_o.
+- HRESETn: Active-low reset input
 
 APB Interface Signals
 ~~~~~~~~~~~~~~~~~~~~~
-  - PADDR[11:0]: APB address bus input
-  - PSEL: APB peripheral select input
-  - PENABLE: APB enable input
-  - PWRITE: APB write control input (high for write, low for read)
-  - PWDATA[31:0]: APB write data bus input
-  - PREADY: APB ready output to indicate transfer completion
-  - PRDATA[31:0]: APB read data bus output
-  - PSLVERR: APB slave error
+- PADDR[11:0]: APB address bus input
+- PSEL: APB peripheral select input
+- PENABLE: APB enable input
+- PWRITE: APB write control input (high for write, low for read)
+- PWDATA[31:0]: APB write data bus input
+- PREADY: APB ready output to indicate transfer completion  
+- PRDATA[31:0]: APB read data bus output
+- PSLVERR: APB slave error
 
 APB PLL Interface Signals
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
-  - ref_clk_i: Reference clock input from the external devices.
-  - rst_ni: Reset the clock dividers and multiplexers
-  - soc_clk_o: Output clock for the core soc domain
-  - periph_clk_o: Output clock for the peripheral domain
-  - cluster_clk_o: Output clock for the cluster/eFPGA domain
-  - ref_clk_o: Output reference clock
-  - AVDD: Bidirectional voltage AVDD  (**Feature not implemented**)
-  - AVDD2: Bidirectional voltage AVDD2  (**Feature not implemented**)
-  - AVSS: Bidirectional voltage AVSS  (**Feature not implemented**)
-  - VDDC: Bidirectional voltage VDDC  (**Feature not implemented**)
-  - VSSC: Bidirectional voltage VSSC  (**Feature not implemented**)
+- ref_clk_i: Reference clock input from the external devices.
+- rst_ni: Reset the clock dividers and multiplexers
+- soc_clk_o: Output clock for the core soc domain
+- periph_clk_o: Output clock for the peripheral domain
+- cluster_clk_o: Output clock for the cluster/eFPGA domain
+- ref_clk_o: Output reference clock
+- AVDD: Bidirectional voltage AVDD  (**Feature not implemented**)
+- AVDD2: Bidirectional voltage AVDD2  (**Feature not implemented**)
+- AVSS: Bidirectional voltage AVSS  (**Feature not implemented**)
+- VDDC: Bidirectional voltage VDDC  (**Feature not implemented**)
+- VSSC: Bidirectional voltage VSSC  (**Feature not implemented**)
