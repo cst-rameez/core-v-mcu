@@ -20,7 +20,7 @@
 APB Timer
 =========
 
-APB Timer primarily generates interrupts  to the Core complex or CPU subsytem with a finite configurable delay. It manages the interrupt generation through various configurations of prescaler, reference clock and timer counters. 
+APB Timer primarily generates interrupts to the Core complex or CPU subsytem with a finite configurable delay. It manages the interrupt generation through various configurations of prescaler, reference clock and timer counters. 
 
 Features
 ---------

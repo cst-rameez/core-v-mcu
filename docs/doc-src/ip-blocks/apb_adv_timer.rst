@@ -19,8 +19,8 @@
 
 APB Advanced Timer
 ==================
-
-The Advanced Timer supports four programmable timers called "channels", typically used for PWM generation. These four timers can be configured independently to support four unique PWM generation parallely.   
+APB Advanced Timer generates PWM for the Core complex or CPU subsystem by the use of four programmable timers called "channels".
+These four timers can be configured independently to support four unique PWM generation parallely.   
 
 Features
 --------
@@ -43,8 +43,8 @@ Features
 - 4-bit PWM output for each timer.
 - Configurable clock gating of each timer
 
-Block Architecture
--------------------
+Architecture
+------------
 
 The figure below is a high-level block diagram of the APB Advanced Timer module:-
 
