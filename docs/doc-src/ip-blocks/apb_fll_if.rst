@@ -55,7 +55,7 @@ APB PLL generates the following clock signals:-
 
 The figure below is a high-level block Diagram of APB PLL:
 
-.. figure:: apb_pll_block_diagram
+.. figure:: apb_pll_block_diagram.png
    :name: apb_pll_block_diagram
    :align: center
    :alt: 
