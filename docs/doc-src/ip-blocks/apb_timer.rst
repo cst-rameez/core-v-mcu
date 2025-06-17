@@ -42,9 +42,10 @@ Architecture
 
 The figure below is a high-level block Diagram of APB Timer:
 
-.. image:: apb_timer_block_diagram.png
-   :width: 5in
-   :height: 2.38889in
+.. figure:: apb_timer_block_diagram.png
+   :name: apb_timer_block_diagram
+   :align: center
+   :alt: 
 
 APB Timer Components
 ~~~~~~~~~~~~~~~~~~~~~~
