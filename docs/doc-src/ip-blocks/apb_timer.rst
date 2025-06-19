@@ -37,8 +37,12 @@ Features
 -  Configurable control operations of timer: (Start, Stop and Reset)
 
 
-Architecture
-------------
+Block Architecture
+------------------
+APB timer can either be configured as two 32-bit independent timers or a single 64 bit timer. 
+It has two timers, Timer_hi and Timer_lo which are responsible to generate irq_lo_o or irq_hi_o interrupt siganls to Core Complex/CPU. 
+Working of Timer_lo and Timer_hi is functionally identical in the 32 bit mode, where as Timer_lo and Timer_hi are cascadded in 64 bit mode.
+The APB timer can be configured using CSRs. The CSRs of the APB timer are accessible using the APB bus.
 
 The figure below is a high-level block Diagram of APB Timer:
 
@@ -47,77 +51,167 @@ The figure below is a high-level block Diagram of APB Timer:
    :align: center
    :alt: 
 
-APB Timer Components
-~~~~~~~~~~~~~~~~~~~~~~
+Working of APB Timer
+~~~~~~~~~~~~~~~~~~~~
+We will discuss the detailed working of APB Timer as 32 bit Timer and also as a 64 bit Timer.
 
-- The APB TIMER consists of the following key components: 
-   - Control operations for 32 bit Timer: Generation of few control signals like reset and enable signals for two 32 bit timer (timer_lo and timer_hi)
-   - Control operations for 64 bit Timer: Generation of few control signals like reset and enable signals for a 64 bit timer
-   - Prescalers: Prescalers scales down the frequency with the PRESCALER_COUNT amount of times. prescaler_lo and prescaler_hi are supported.  
-   - Timer Counters: 2 Timer counters  primarily generates the interrupt siganls irq_lo_o or irq_hi_o. It can be configured independently for 32 bit or in cascadded manner for 64 bit. 
+32 bit Timer
+~~~~~~~~~~~~~
+APB timer can be configured as 32-bit timer i.e Timer_hi/Timer_lo in one of the below following ways.
+
+- Only Timer_hi can be configured.
+- Only Timer_lo can be configured. 
+- Both Timer_hi/Timer_lo can be configured independently at the same time.
+
+As the working of Timer_hi/Timer_lo is functionally similar. 
+Lets try to understand how CSRs and input or output signals can be correlated to Timer_hi or Timer_lo.
+
+Examples:
+
+- CSRs: To reset the Timer_lo, the RESET_BIT in the CFG_REG_LO CSR is set to '1'. In a similar way, to reset Timer_hi, the RESET_BIT in the CFG_REG_HI CSR is set to '1'.
+- input or output signals: event_lo_i, irq_lo_o signals are used for Timer_lo. In similar way, event_hi_i, irq_hi_o signals are used for Timer_hi.
+
+As the [*]_LO CSRs, [*]_lo_i input signals and [*]_lo_o output signals for Timer_lo can be replaced by the [*]_HI CSRs, [*]_hi_i input signals and [*]_hi_o output signals for Timer_hi. 
+We will discuss about the control operations, prescaler and timer counter for 32 bit Timer.    
+
+Control Operations
+^^^^^^^^^^^^^^^^^^
+APB Timer generates control signals to control the prescaler and timer counter sub modules. 
+For Timer_lo, the following signals like reset_prescaler_lo, enable_prescaler_lo, reset_timer_lo, enable_timer_lo are generated. 
+For Timer_hi, the following signals like reset_prescaler_hi, enable_prescaler_hi, reset_timer_hi, enable_timer_hi are generated. 
+The Timer_hi control signals are independent of Timer_lo control signals. Let us understand how these signals are generated for 32- bit Timer.
+
+**Reset Prescaler for Timer_[lo/hi]:**
+
+reset_prescaler_lo signal is used to reset the prescaler submodule for Timer_lo. reset_prescaler_hi signal is used to reset the prescaler submodule for Timer_hi. By default reset_prescaler_lo, reset_prescaler_hi signals are set to '0'.
+
+reset_prescaler_[lo/hi] signal is set to '1', if any of the below conditions is satisfied: 
+
+- When PRESCALER_EN_BIT in the CFG_REG_[LO/HI] CSR is set to '1' and prescaler_[lo/hi]_target_reached is set '1'.
+- When the RESET_BIT in the CFG_REG_[LO/HI] CSR is set to '1'.
+- When the RESET_[LO/HI] in the TIMER_RESET_[LO/HI] CSR is set to '1'. 
+
+**Enable Prescaler for Timer_[lo/hi]:**
+
+enable_prescaler_lo signal is used to enable the prescaler submodule for Timer_lo. enable_prescaler_hi signal is used to enable the prescaler submodule for Timer_hi. By default enable_prescaler_lo, enable_prescaler_hi signals are set to '0'.
+if the REF_CLK_EN_BIT in the CFG_REG_[LO/HI] CSR is set to '1', then the enable_prescaler_[lo/hi] will be set to any value(i.e 0 or 1) only at the positive edge of the reference clock. 
+
+enable_prescaler_[lo/hi] is set to '1' in the below condition:  
+
+- when PRESCALER_EN_BIT and ENABLE_BIT of CFG_REG_[LO/HI] is '1' and stop_timer_i is '0'.
+
+**Reset Timer counter for Timer_[lo/hi]:**
+
+reset_timer_lo signal is used to reset the timer counter submodule for Timer_lo. reset_timer_hi signal is used to reset the timer counter submodule for Timer_hi. By default reset_timer_lo, reset_timer_hi signals are set to '0'.
+
+reset_timer_[lo/hi] signal is set to '1', if any of the below conditions is satisfied: 
+
+- When CMP_CLR_BIT in the CFG_REG_[LO/HI] CSR is set to '1' and timer_[lo/hi]_target_reached is set '1'. (i.e Compare clear mode is enabled)
+- When the RESET_BIT in the CFG_REG_[LO/HI] CSR is set to '1'.
+- When the RESET_[LO/HI] in the TIMER_RESET_[LO/HI] CSR is set to '1'. 
+
+**Enable Timer counterfor Timer_[lo/hi]:**
+
+enable_timer_lo signal is used to enable the timer counter submodule for Timer_lo. enable_timer_hi signal is used to enable the timer counter submodule for Timer_hi. By default enable_timer_lo, enable_timer_hi signals are set to '0'.
+enable_timer_[lo/hi] will be '0' when timer_[lo/hi]_target_reached is set to '1'.
+if the REF_CLK_EN_BIT in the CFG_REG_[LO/HI] CSR is set to '1', then the enable_timer_[lo/hi] will be set to any value (i.e 1 or 0) only at the positive edge of the reference clock.
+if event_[lo/hi]_i signal is '1' and IEM_BIT of CFG_REG_[LO/HI] is '1' then the ENABLE_BIT of CFG_REG_[LO/HI] is set to '1'.
+if TIMER_START_[LO/HI] is set to any value other than '0' then the ENABLE_BIT of CFG_REG_[LO/HI] is set to '1'.
+
+enable_timer_[lo/hi] is set to '1', if any of the below conditions is satisfied:
+
+   - when ENABLE_BIT of CFG_REG_[LO/HI] is '1', PRESCALER_EN_BIT of CFG_REG_[LO/HI] is '0' and stop_timer_i is '0' (If prescaler of Timer_lo is disabled).
+   - when PRESCALER_EN_BIT and ENABLE_BIT of CFG_REG_[LO/HI] is '1' and prescaler_[lo/hi]_target_reached is '1' and stop_timer_i is '0' (If prescaler of Timer_lo is enabled).
+
+Prescaler
+^^^^^^^^^
+Prescalers main objective is to scale down the frequency of the input clock with the PRESCALER_COMP bitfield of CFG_REG_[LO/HI] CSR amount of times.
+Prescaler generates prescaler_[lo/hi]_target_reached event after N number of clock cyles. where N is prescaler compare value i.e PRESCALER_COMP bitfield of CFG_REG_[LO/HI] CSR.
+The prescaler operation is same for Timer_lo and Timer_hi in the 32 bit timer.
+PRESCALER_COMP bitfield of CFG_REG_[LO/HI] CSR, enable_prescaler_[lo/hi] and reset_prescaler_[lo/hi] are passed as inputs to the prescaler.
+
+Prescaler maintains a prescaler counter whose initial value is '0'. For every positive edge of the HCLK clock, if enable_prescaler_lo is set to '1'
+prescaler counter is incremented by value '1' until it reaches the PRESCALER_COMP bitfield of CFG_REG_[LO/HI] CSR value.
+Once the prescaler counter reaches PRESCALER_COMP bitfield of CFG_REG_[LO/HI] CSR value then prescaler_[lo/hi]_target_reached event is set to '1'.
+In the next positive edge of the HCLK clock, prescaler counter and prescaler_[lo/hi]_target_reached are resetted to '0'.
+prescaler counter starts incrementing and the same process repeats to set the prescaler_[lo/hi]_target_reached multiple times.
+
+If the enable_prescaler_[lo/hi] is set to '0', then the prescaler will pause its operation. (i.e the prescaler counter will not be set to '0')
+
+Timer Counter 
+^^^^^^^^^^^^^
+
+Timer counter primarily generates the output interrupts irq_lo_o or irq_hi_o for the Core complex. 
+32 bit Timer generates timer_[lo/hi]_target_reached event after N number of clock cyles. where N is timer compare value i.e TIMER_CMP_[LO/HI] CSR.
+The operation is same for timer_lo and timer_hi in the 32 bit Timer.
+TIMER_CMP_[LO/HI], TIMER_VAL_[LO/HI], reset_timer_[lo/hi] and enable_timer_[lo/hi] are passed as inputs to the timer.
+
+Timer maintains a timer counter whose initial value is '0' and FW can overwrite/program this timer counter to any value by configuring TIMER_VAL_[LO/HI] CSR. 
+For every positive edge of the HCLK clock, if enable_timer_[lo/hi] set to '1'. timer counter is incremented by value '1' until it reaches the TIMER_CMP_[LO/HI] value.
+Once the timer counter reaches TIMER_CMP_[LO/HI] value then timer_[lo/hi]_target_reached event is set to '1'. if the IRQ_BIT is set to '1', then the irq_[lo/hi]_o interrupt will be asserted.
+
+if one shot mode (ONE_SHOT_BIT bitfield of CFG_REG_[LO/HI] CSR is '1') is enabled then in the next clock cycle, the enable_timer_[lo/hi] is set to '0', then the timer will pause its operation. (i.e the timer counter will not be set to '0')
+
+if compare clear mode (CMP_CLR_BIT bitfield of CFG_REG_[LO/HI] CSR is '1') is enabled then in the next clock cycle, the reset_timer_[lo/hi] is set to '1', timer counter and timer_[lo/hi]_target_reached are resetted to '0'. timer counters starts incrementing and the same process repeats to to set the timer_[lo/hi]_target_reached multiple times.
 
 
-Control operations for 32 bit Timer
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+64 bit Timer
+~~~~~~~~~~~~~
+APB timer can be configured as 64-bit timer i.e Timer_lo and Timer_hi are cascadded with one another.   
+As it acts as single 64 bit Timer control and status CSRs for [*]_LO CSRs, [*]_lo_i input signals and [*]_lo_o output signals are used.
+apart from these TIMER_RESET_HI and RESE
+If the prescaler operation is enabled, then only prescaler for Timer_lo is used. 
+We will discuss about the control operations, prescaler and timer counter for 32 bit Timer.
 
-- APB Timer generates few control signals(i.e reset, enable) to control the prescaler and timer sub modules.
-- For timer_lo, the following signals like reset_prescaler_lo, enable_prescaler_lo, reset_timer_lo, enable_timer_lo are generated. 
-- For timer_hi, the following signals like reset_prescaler_hi, enable_prescaler_hi, reset_timer_hi, enable_timer_hi are generated. 
-- For 32-bit timer, timer_hi control signals are independent of timer_lo control signals. Let us understand how these signals are generated for 32- bit timer_lo:
+Control Operations
+^^^^^^^^^^^^^^^^^^
+APB Timer generates control signals to control the prescaler and timer counter sub modules.
+One Prescaler and two timer counter submodules are used.
+Following control signals are generated i.e enable_timer_lo, reset_timer_lo, enable_prescaler_lo, reset_prescaler_lo, enable_timer_hi and reset_timer_hi.
 
-reset_prescaler_lo:
-^^^^^^^^^^^^^^^^^^^
+**Reset Prescaler:**
 
-- By default reset_prescaler_lo signal is set to '0'
-- reset_prescaler_lo signal is set to '1': 
+reset_prescaler_lo signal is used to reset the prescaler submodule for Timer_lo. By default reset_prescaler_lo signal is set to '0'.
 
-   - When PRESCALER_EN_BIT is set to '1' and prescaler_lo_target_reached is set '1'.
-   - When the RESET_BIT in the CFG_REG_LO CSR is set to '1'.
-   - When the RESET_LO in the TIMER_RESET_LO CSR is set to '1'. 
+reset_prescaler_lo signal is set to '1', if any of the below conditions is satisfied: 
 
-enable_prescaler_lo:
-^^^^^^^^^^^^^^^^^^^^^
+- When PRESCALER_EN_BIT in the CFG_REG_LO CSR is set to '1' and prescaler_lo_target_reached is set '1'.
+- When the RESET_BIT in the CFG_REG_LO CSR is set to '1'.
+- When the RESET_LO in the TIMER_RESET_LO CSR is set to '1'. 
 
-- By default, the enable_prescaler_lo will be '0'.
-- if the REF_CLK_EN_BIT is set to '1', then the enable_prescaler_lo will be set to any value only at the positive edge of the reference clock 
-- enable_prescaler_lo is set to '1':  
+**Enable Prescaler:**
 
-   - when PRESCALER_EN_BIT and ENABLE_BIT of CFG_REG_LO is '1' and stop_timer_i is '0'.
+enable_prescaler_lo signal is used to enable the prescaler submodule for Timer_lo.  By default enable_prescaler_lo signal is set to '0'.
+if the REF_CLK_EN_BIT in the CFG_REG_LO CSR is set to '1', then the enable_prescaler_lo will be set to any value(i.e 0 or 1) only at the positive edge of the reference clock. 
 
-reset_timer_lo:
-^^^^^^^^^^^^^^^^
+enable_prescaler_lo is set to '1' in the below condition:  
 
-- By default reset_timer_lo signal is set to '0'.
-- reset_timer_lo signal is set to '1': 
+- when PRESCALER_EN_BIT and ENABLE_BIT of CFG_REG_LO is '1' and stop_timer_i is '0'.
 
-   - When CMP_CLR_BIT is set to '1' and timer_lo_target_reached is set '1'. (i.e Compare clear mode is enabled)
-   - When the RESET_BIT in the CFG_REG_LO CSR is set to '1'.
-   - When the RESET_LO in the TIMER_RESET_LO CSR is set to '1'. 
+**Reset Timer counter for Timer_lo:**
 
-enable_timer_lo:
-^^^^^^^^^^^^^^^^
+reset_timer_lo signal is used to reset the timer counter submodule for Timer_lo. By default reset_timer_lo signal is set to '0'.
 
-- By default the enable_timer_lo will be '0' and enable_timer_lo will be '0' when timer_lo_target_reached is set to '1'.
-- if the REF_CLK_EN_BIT is set to '1', then the enable_timer_lo will be set to any value only at the positive edge of the reference clock.
-- if event_lo_i signal is '1' and IEM_BIT of CFG_REG_LO is '1' then the ENABLE_BIT of CFG_REG_LO is set to '1'.
-- if TIMER_START_LO is set to any value other than '0' then the ENABLE_BIT of CFG_REG_LO is set to '1'.
-- enable_timer_lo is set to '1':
+reset_timer_lo signal is set to '1', if any of the below conditions is satisfied: 
 
-   - when ENABLE_BIT of CFG_REG_LO is '1' and stop_timer_i is '0' (If prescaler_lo is disabled).
-   - when ENABLE_BIT of CFG_REG_LO and prescaler_lo_target_reached is '1' and stop_timer_i is '0' (If prescaler_lo is enabled).
+- When CMP_CLR_BIT in the CFG_REG_LO CSR is set to '1' and timer_lo_target_reached and timer_hi_target_reached is set '1'. (i.e Compare clear mode is enabled)
+- When the RESET_BIT in the CFG_REG_LO CSR is set to '1'.
+- When the RESET_LO in the TIMER_RESET_LO CSR is set to '1'. 
 
-Important Note:
-^^^^^^^^^^^^^^^^
+**Enable Timer counter for Timer_lo:**
 
-- The control signals for the 32-bit timer_hi are generated in the similar way as 32-bit timer_lo.
+enable_timer_lo signal is used to enable the timer counter submodule for Timer_lo. By default enable_timer_lo signal is set to '0'.
+enable_timer_lo will be '0' when timer_lo_target_reached is set to '1'.
+if the REF_CLK_EN_BIT in the CFG_REG_LO CSR is set to '1', then the enable_timer_lo will be set to any value (i.e 1 or 0) only at the positive edge of the reference clock.
+if event_lo_i signal is '1' and IEM_BIT of CFG_REG_LO is '1' then the ENABLE_BIT of CFG_REG_LO is set to '1'.
+if TIMER_START_LO is set to any value other than '0' then the ENABLE_BIT of CFG_REG_LO is set to '1'.
 
-Control operations for 64 bit Timer
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   
-- Only 1 prescaler_lo is used and the control signals of prescaler are driven in the similar way of 32-bit timer.
-- Both timer_hi and timer_lo are used in the cascadded fashion.
-- enable_timer_lo, enable_prescaler_lo and reset_prescaler_lo are set in the similar way
-   
+enable_timer_lo is set to '1', if any of the below conditions is satisfied:
+
+   - when ENABLE_BIT of CFG_REG_LO is '1', PRESCALER_EN_BIT of CFG_REG_LO is '0' and stop_timer_i is '0' (If prescaler of Timer_lo is disabled).
+   - when PRESCALER_EN_BIT and ENABLE_BIT of CFG_REG_LO is '1' and prescaler_lo_target_reached is '1' and stop_timer_i is '0' (If prescaler of Timer_lo is enabled).
+
+
 reset_timer_lo:
 ^^^^^^^^^^^^^^^
 
@@ -159,13 +253,13 @@ Prescaler
 - Prescaler generates prescaler_lo_target_reached event after N number of clock cyles. where N is prescaler compare value.
 - The operation is same for prescaler_lo and prescaler_hi in both the 32 bit and 64 bit mode. For explanation we have used prescaler_lo CSRs below.
 - PRESCALER_COMP bitfield of CFG_REG_LO CSR, enable_prescaler_lo and reset_prescaler_lo are passed as inputs to the prescaler.
-- Prescaler maintains a precaler counter whose initial value is '0'.
+- Prescaler maintains a prescaler counter whose initial value is '0'.
 - For every positive edge of the HCLK clock, if enable_prescaler_lo is set to '1'
 
-   - precaler counter is incremented by value '1' until it reaches the PRESCALER_COMP value.
-   - Once the precaler counter reaches PRESCALER_COMP value and prescaler_lo_target_reached event is set to '1'.
-   - Once the reset_prescaler_lo is set to '1', precaler counter and prescaler_lo_target_reached are resetted to '0'.
-   - precaler counter starts incrementing and the same process repeats to generate multiple such events.
+   - prescaler counter is incremented by value '1' until it reaches the PRESCALER_COMP value.
+   - Once the prescaler counter reaches PRESCALER_COMP value and prescaler_lo_target_reached event is set to '1'.
+   - Once the reset_prescaler_lo is set to '1', prescaler counter and prescaler_lo_target_reached are resetted to '0'.
+   - prescaler counter starts incrementing and the same process repeats to generate multiple such events.
 
 - If the enable_prescaler_lo is set to '0', then the prescaler will pause its operation. (i.e the prescaler counter will not be set to '0')
 
@@ -188,12 +282,12 @@ Timer Counter
       - timer counters starts incrementing and the same process repeats to generate multiple such events.
 
 
-Working of APB Timer:
-----------------------
+Operational Flow:
+------------------
 
 - FW performs Initialization and drives various configuration CSR. 
-- Once start is issued, Timer counts from initial value till it reaches the target value and generates an output interrupt.
 - If the prescaler is also enabled, prescaler and timer works in the cascaded manner. when the prescaler_lo_target_reached is set to '1', Timer is enabled and the Timer Counter is incremented by '1'.
+- Once start is issued, Timer counts from initial value till it reaches the target value and generates an output interrupt.
 - Assuming Initial value of Timer Counter is '0'. then it will reach to N, if prescaler_lo_target_reached is issued N times by the prescaler.
 
 
@@ -497,7 +591,7 @@ Initialization:
 Initializing the Prescaler:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-  - By default precalers are disabled, set PRESCALER_EN_BIT bitfield of CFG_REG_LO or CFG_REG_HI CSRs to enable the prescaler_lo or prescaler_hi respectively. 
+  - By default prescalers are disabled, set PRESCALER_EN_BIT bitfield of CFG_REG_LO or CFG_REG_HI CSRs to enable the prescaler_lo or prescaler_hi respectively. 
 
   - If the Prescalers are enabled, Write to the PRESCALER_COUNT bitfield of CFG_REG_LO or CFG_REG_HI CSRs to specify the compare value for the prescaler_lo or prescaler_hi respectively. 
 
