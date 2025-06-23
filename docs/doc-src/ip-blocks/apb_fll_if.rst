@@ -46,9 +46,13 @@ The APB PLL includes submodules such as PLL TOP, divider and cascaded divider an
 
 The ref_clk_i is provided by the external devices. This clock signal can be scaled using various CSR configurations.
 APB PLL generates the following clock signals:-
+
 - soc_clk_o, It is the system clock for the CORE_V_MCU 
+
 - periph_clk_o, UDMA subsystem uses this clock 
+
 - cluster_clk_o, eFPGA subsystem uses this clock
+
 - ref_clk_o, APB and eFPGA subsystems uses this clock
 
 
@@ -70,7 +74,9 @@ PLL TOP
 PLL TOP generats output clock which acts as the input to the cascaded divider and mux.
 It also generates a bypass signal to the mux.
 PLL TOP takes BYPASS and ref_clk_i as input and process as per the below conditions:
+
 - When the BYPASS bitfield is '1' then output clock period value is same as the period of the ref_clk_i clock.
+
 - When the BYPASS bitfield is '0' then output clock period will be 2.5 times the period of the ref_clk_i.
 
 Cascaded divider and mux 
@@ -87,17 +93,17 @@ The divider scales down the PLL TOP output frequency by a factor defined by the 
 
 DIV (Clock divisor values):
 
-- If the DIV bitfield value is either 0 or 1, then the output clock itself is not geenrated.
+- If the DIV bitfield value is either 0 or 1, then the output clock itself is not generated.
 - If the DIV bitfield value is 2, then the output clock is same as the input clock.
 - If the DIV bitfield value is in the range of (0x3 to 0x1FF), then the output clock is generated according to the below formulas.
 
 Frequency Calculation: 
 
-- Output Clock Frequency = Input Clock Frequency / (DIV bitfield)
+- Output Clock Frequency = Input Clock Frequency / (DIV bitfield value)
 
 Time Period Calculation: 
 
-- Output Clock Time Period = Input Clock Time Period * (DIV bitfield)
+- Output Clock Time Period = Input Clock Time Period * (DIV bitfield value)
 
 For example, if the Input clock ferquency is 200 MHz and the Div bitfield is 0x28
 
@@ -108,17 +114,19 @@ Multiplexer or Mux:
 ^^^^^^^^^^^^^^^^^^^
 Multiplexer selects the output signal to be generated for each domain depending on BYPASS bitfield of REG_CTL CSR.
 It takes two input clocks, One input clock is received from the divider and other input clock is ref_clk_i and and process as per the below conditions:
+
 - When the BYPASS bitfield is '1' then output clock period value is same as the period of the ref_clk_i clock.
+
 - When the BYPASS bitfield is '0' then output clock period value is same as the period of the clock received from the divider.
 
 Reset
 ^^^^^^
 
-APB PLL can be resett in the following 3 ways:
+APB PLL can be reset in the following 3 ways:
 
-- RESET bitfield in the CSR REG_CTL is '1'
-- HRESETn pin is low.
-- rst_ni is low
+- When RESET bitfield in the CSR REG_CTL is '1', only the PLL TOP is reset then clocks to all the dividers are reset to '0'. 
+- When HRESETn pin is low, all the registers are reseted and the PLL TOP is reset, then clocks to all the dividers are reset to '0'.
+- When rst_ni is low, all the dividers and muxs are reseted.
 
 
 System Architecture:
@@ -159,8 +167,12 @@ There are CSR bitfields in the APB PLL which controls operations
 - APB PLL can bypass domain clock signals and provide reference clock as output by setting BYPASS bitfield in REG_CTL CSR.
 - APB PLL is resetted by setting RESET bitfield in REG_CTL CSR.
 
-APB FLL CSRs
+APB PLL CSRs
 ------------
+
+Refer to  `Memory Map <https://github.com/openhwgroup/core-v-mcu/blob/master/docs/doc-src/mmap.rst>`_  Map for the peripheral domain addresses of the APB PLL.
+NOTE: APB PLL CSRs are non-volatile, meaning that their read value will not be changed by the hardware. A CSR's volatility is indicated by its "type".
+Details of CSR access type are explained `here <https://docs.openhwgroup.org/projects/core-v-mcu/doc-src/mmap.html#csr-access-types>`_.
 
 REG_CTL
 ~~~~~~~
@@ -429,17 +441,16 @@ Firmware Guidelines
 
 Initialization:
 ~~~~~~~~~~~~~~~
-- When the HRESETn signal is low, CSRs default to 0 and outputs are low.
-- At every positive edge of the clock the CSR CSRs are updated based on APB signals.
+- Set the RESET bitfield of REG_CTL CSR to reset PLL.
 - FW can update the below bitfields to any custom value as per their description before ref_clk_i is triggered. Otherwise, all the config values of CSRs to be updated to default.
 
-  - The S_DIV bitfields of SOC_DIV CSR. 
+  - The S_DIV bitfields of SOC_DIV CSR for soc_clk_o. 
 
-  - The F_DIV bitfields of CLUSTER_DIV CSR.
+  - The F_DIV bitfields of CLUSTER_DIV CSR for cluster_clk_o.
 
-  - The P_DIV bitfields of PERIPH_DIV CSR.
+  - The P_DIV bitfields of PERIPH_DIV CSR for periph_clk_o.
 
-  - The R_DIV bitfields of REF_DIV CSR.
+  - The R_DIV bitfields of REF_DIV CSR for ref_clk_o.
 
 
 Output clock generation of the APB_PLL:
@@ -455,12 +466,7 @@ FW can observe the following APB_PLL generated output clock signals:
 
 Bypass the domain clock signals:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-if the BYPASS bitfield is set to '1' then all the domain output clock signals are driven by the ref_clk_i.
-
-Reset the APB PLL:
-~~~~~~~~~~~~~~~~~~
-
-FW can issue a reset request to the APB PLL by writing 1 at the RESET bitfield in the CSR REG_CTL
+if the BYPASS bitfield is set to '1' then all the domain output clock signals are driven by the ref_clk_i and the divider will not scale the clock.
 
 
 
