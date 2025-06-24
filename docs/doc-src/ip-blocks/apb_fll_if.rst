@@ -112,7 +112,7 @@ For example, if the Input clock ferquency is 200 MHz and the Div bitfield is 0x2
 
 Multiplexer or Mux:
 ^^^^^^^^^^^^^^^^^^^
-Multiplexer selects the output signal to be generated for each domain depending on BYPASS bitfield of REG_CTL CSR.
+Multiplexer selects the output signal to be generated for each domain depending on BYPASS bitfield of REG_CTL CSR. BYPASS bit acts as the select line for 2x1 Mux.
 It takes two input clocks, One input clock is received from the divider and other input clock is ref_clk_i and and process as per the below conditions:
 
 - When the BYPASS bitfield is '1' then output clock period value is same as the period of the ref_clk_i clock.
@@ -124,9 +124,16 @@ Reset
 
 APB PLL can be reset in the following 3 ways:
 
-- When RESET bitfield in the CSR REG_CTL is '1', only the PLL TOP is reset then clocks to all the dividers are reset to '0'. 
-- When HRESETn pin is low, all the registers are reseted and the PLL TOP is reset, then clocks to all the dividers are reset to '0'.
-- When rst_ni is low, all the dividers and muxs are reseted.
+**Software Reset via Control Register**
+When the RESET bitfield in the REG_CTL CSR is set to '1', only the PLL top module is reset. As a result, clock outputs to all dividers are driven to '0'.
+
+**Global Reset via HRESETn**
+When the HRESETn pin is deasserted (low), all configuration registers are reset, and the PLL top module is also reset. Consequently, clocks to all dividers are driven to '0'.
+
+**Local Reset via rst_ni**
+When the rst_ni pin is deasserted (low), all dividers and multiplexers (muxes) are reset. 
+In dividers, the counter and clock are driven to '0'.
+In mux, Bypass bit or select line is driven to '0'.
 
 
 System Architecture:
