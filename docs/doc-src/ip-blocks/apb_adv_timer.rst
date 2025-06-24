@@ -19,8 +19,9 @@
 
 APB Advanced Timer
 ==================
-APB Advanced Timer generates PWM for the Core complex or CPU subsystem by the use of four programmable timers called "channels".
-These four timers can be configured independently to support four unique PWM generation parallely.   
+APB Advanced Timer generates PWM for the external devices connected to CORE_V_MCU by the use of four programmable 16 bit timers called "channels".
+These four timers can be configured independently to support four unique PWM generation parallely.
+Each 16 bit timer has various configurations of input stage, prescaler, updown counter and comparators.    
 
 Features
 --------
@@ -43,8 +44,8 @@ Features
 - 4-bit PWM output for each timer.
 - Configurable clock gating of each timer
 
-Architecture
-------------
+Block Architecture
+------------------
 
 The figure below is a high-level block diagram of the APB Advanced Timer module:-
 
@@ -61,6 +62,7 @@ APB control logic, APB ADVANCED TIMER CSRs and 4 Timer modules
 
 APB control logic
 ~~~~~~~~~~~~~~~~~
+
 The APB control logic interfaces with the APB bus to decode and execute commands.
 It handles CSR reads and writes according to the APB protocol, providing a standardized interface to the system.
 
@@ -82,6 +84,17 @@ APB ADVANCED TIMER CSRs
 
 Timer Module
 ~~~~~~~~~~~~
+
+Timer module's main objective is to generate PWM signal based on the external input/stimulus provided.
+Timer module has various submodules/components like Timer Controller, Input stage, Prescalar, Updown counter and Comparators.
+Timer controller manages all the other submodules through few control signals like active, controller reset and update.
+FW performs Initialization and drives various configuration CSR. 
+
+In order to generate the PWM, the data flows through the following submodule:
+- **(ext_sig_i )** -> input stage -> prescaler ->updown counter ->comparators -> **(PWM)**
+
+
+
 .. figure:: apb_adv_timer_diagram_1.png
    :name: TIMER_Block_Diagram
    :align: center
@@ -89,141 +102,137 @@ Timer Module
 
    TIMER Block Diagram
 
-Introduction
-^^^^^^^^^^^^^
-- Timer module's main objective is to generate PWM signal based on the external input/stimulus provided.
-- Timer module has various submodules/components like Timer Controller, Input stage, Prescalar, Updown counter and Comparators.
-- Timer controller manages all the other submodules through few control signals like active, controller reset and update.
-- FW performs Initialization and drives various configuration CSR. 
-- In order to generate the PWM, the data flows through the following submodule.
-  
-  - **(ext_sig_i )** -> input stage -> prescaler ->updown counter ->comparators -> **(PWM)**
-
 
 Timer Controller
 ^^^^^^^^^^^^^^^^
-- Timer controller generates few important signals like active, update and reset. It parses and controls other sub modules through these signals. 
+Timer controller generates few important signals like active, update and reset. It parses and controls other sub modules through these signals. 
 
-  -  active signal: It is a control signal through which a sub module can either enable or disable its operations.
-  -  update signal: It informs the sub module when to update the latest configured CSR values in order to perform their operations.
-  -  reset signal: It resets the sub modules.
+-  active signal: It is a control signal through which a sub module can either enable or disable its operations.
+-  update signal: It informs the sub module when to update the latest configured CSR values in order to perform their operations.
+-  reset signal: It resets the sub modules.
 
-- The active signal is driven by a different a value in the following conditions. 
+The active signal is driven by a different a value in the below 2 conditions: 
 
-  -  The active signal is driven by value '1', when the START bitfield is '1' in the REG_TIM[0-3]_CMD CSR.
+-  The active signal is driven by value '1', when the START bitfield is '1' in the REG_TIM[0-3]_CMD CSR.
+-  The active signal is driven by value '0'. when the START bitfield is '0' and STOP bitfield is '1' in the REG_TIM[0-3]_CMD CSR. 
 
-  -  The active signal is driven by value '0'. when the START bitfield is '0' and STOP bitfield is '1' in the REG_TIM[0-3]_CMD CSR. 
-
-- The update signal is always driven by the value UPDATE bitfield in the REG_TIM[0-3]_CMD CSR and controller reset signal is driven by the value RESET bitfield in the REG_TIM[0-3]_CMD CSR. 
-- These signals are parsed to all sub modules in the following conditions
+The update signal is always driven by the value UPDATE bitfield in the REG_TIM[0-3]_CMD CSR and controller reset signal is driven by the value RESET bitfield in the REG_TIM[0-3]_CMD CSR. 
+The update and reset signals are parsed to all sub modules for the below 2 conditions:
 
   - if START bitfield is 0 in the REG_TIM[0-3]_CMD CSR.
-
   - if START bitfield is '1' in the REG_TIM[0-3]_CMD CSR and active signal is '1'. When the Timer starts for the first time.
 
 Input Stage
 ^^^^^^^^^^^
-- Input stage receives the input (i.e ext_sig_i and PWM output signals of all the 4 timers) and based on CSR configurations, it selects the clock, input pin and operating mode to generate the output event signal.  
-- Input stage uses the bitfield INSEL in REG_TIM[0-3]_CFG CSR and selects a signal from a set of signals in ext_sig_i.
-- Input stage uses the bitfield CLKSEL in REG_TIM[0-3]_CFG CSR and decides whether the input will be either in sync with the rising edge of the low_speed_clk_i or in sync with the ref clock.
-- At every positive edge of the selected clock and selected input signal, Input stage uses the bitfield MODE in REG_TIM[0-3]_CFG CSR to generate output event signal according to the below information.
 
-  - If MODE is 3’b000
+Input stage receives the input (i.e ext_sig_i and PWM output signals of all the 4 timers) and based on CSR configurations, it selects the clock, input pin and operating mode to generate the output event signal.  
+Input stage uses the bitfield INSEL in REG_TIM[0-3]_CFG CSR and selects a signal from a set of signals in ext_sig_i.
+Input stage uses the bitfield CLKSEL in REG_TIM[0-3]_CFG CSR and decides whether the input will be either in sync with the rising edge of the low_speed_clk_i or in sync with the ref clock.
 
-    - The event is always high
+At every positive edge of the selected clock and selected input signal, Input stage uses the bitfield MODE in REG_TIM[0-3]_CFG CSR to generate output event signal according to the below information:
 
-  - If MODE is 3’b001
+- If MODE is 3’b000
 
-    - The event is sensitive to the negation of the signal selected
+  - The event is always high
 
-  - If MODE is 3’b010
+- If MODE is 3’b001
 
-    - The output event is sensitive to the input signal selected
+  - The event is sensitive to the negation of the signal selected
+
+- If MODE is 3’b010
+
+  - The output event is sensitive to the input signal selected
     
-  - If MODE is 3’b011
+- If MODE is 3’b011
 
-    - The output event is sensitive to the rising edge of the selected signal in sync with the clock.
+  - The output event is sensitive to the rising edge of the selected signal in sync with the clock.
 
-  - If MODE is 3’b100
+- If MODE is 3’b100
 
-    - The output event is sensitive to the falling edge of the selected signal in sync with the clock.
+  - The output event is sensitive to the falling edge of the selected signal in sync with the clock.
 
-  - If MODE is 3’b101
+- If MODE is 3’b101
 
-    - The output event is sensitive to both rising edge and falling edge of the selected signal in sync with the clock.
+  - The output event is sensitive to both rising edge and falling edge of the selected signal in sync with the clock.
 
-  - If MODE is 3’b110
+- If MODE is 3’b110
 
-    - If the timer is armed ,i,e,the CSR ARM is high then the event is made high for the rising edge of the selected signal and remains the same until the next rising edge of the signal.If ARM CSR is low,then the output event is low forever.
+  - If the timer is armed ,i,e,the CSR ARM is high then the event is made high for the rising edge of the selected signal and remains the same until the next rising edge of the signal.If ARM CSR is low,then the output event is low forever.
 
-  - If MODE is 3’b111
+- If MODE is 3’b111
 
-    - If the timer is armed ,i,e,the CSR ARM is high then the event is made high for the falling edge of the selected signal and remains the same until the next falling edge of the signal.If ARM CSR is low,then the output event is low forever.
+  - If the timer is armed ,i,e,the CSR ARM is high then the event is made high for the falling edge of the selected signal and remains the same until the next falling edge of the signal.If ARM CSR is low,then the output event is low forever.
 
 Prescalar
 ^^^^^^^^^
-- Prescaler scales down the high frequency input signal to low frequency output signal by using the prescaler value. 
-- The PRESC bitfield in the REG_TIM[0-3]_CFG CSR is parsed to Prescaler and the output event signal generated in the previous input stage is scaled based on the PRESC value.
-- Prescaler module maintains a internal counter whose initial value is 0. At every positive edge of the clock, counter gets incremented by '1' when event input signal is '1' and Timer is active.
-- When the internal counter value matches with the PRESC bitfield output event is set to '1' at positive edge of the clock(the frequency is scaled according to the PRESC CSR value) and the counter is updated to '0'. The above process continues and output events are generated.
-- Both the counter and output event is set to 0. When either the hard reset is triggered or when Timer controller parses the RESET bitfield which is set to '1'.
+Prescaler scales down the high frequency input signal to low frequency output signal by using the prescaler value. 
+
+The PRESC bitfield in the REG_TIM[0-3]_CFG CSR is parsed to Prescaler and the output event signal generated in the previous input stage is scaled based on the PRESC value.
+Prescaler module maintains a internal counter whose initial value is 0. At every positive edge of the clock, counter gets incremented by '1' when event input signal is '1' and Timer is active.
+When the internal counter value matches with the PRESC bitfield output event is set to '1' at positive edge of the clock (the frequency is scaled according to the PRESC CSR value) and the counter is updated to '0'.
+The above process continues and output events are generated.
+
+Both the counter and output event is set to 0. When either the hard reset is triggered or when Timer controller parses the RESET bitfield which is set to '1'.
 
 Updown counter
 ^^^^^^^^^^^^^^
-- Updown counter manages the timer counter values based on CSR configurations and generates the following outputs: counter value, end event and the output event.
-- The output event generated from prescaler sub module is provided as the input for the updown counter. At every positive edge of the clock, if the active signal is '1' then output event is driven by the value of output event generated from prescaler.
-- The active, controller reset and update signals are provided by the Timer controller.  
-- Updown counter maintains a counter and direction(0- up and 1- down).
-- During the initialization, counter value is set to COUNT_START and direction to 0 and any new values of SAWTOOTH, COUNT_START and COUNT_END bitfield can be provided by FW. 
-- At every positive edge of the clock, if output event generated from prescaler is '1' and active sigmal is '1' then the following operation is performed.
+Updown counter manages the timer counter values based on CSR configurations and generates the following outputs: counter value, end event and the output event.
 
-  - if the SAWTOOTH bitfield is '1':
+The output event generated from prescaler sub module is provided as the input for the updown counter.
+At every positive edge of the clock, if the active signal is '1' then output event is driven by the value of output event generated from prescaler.
+The active, controller reset and update signals are provided by the Timer controller.  
+Updown counter maintains a counter and direction(0- up and 1- down).
+During the initialization, counter value is set to COUNT_START and direction to 0 and any new values of SAWTOOTH, COUNT_START and COUNT_END bitfield can be provided by FW. 
+At every positive edge of the clock, if output event generated from prescaler is '1' and active sigmal is '1' then the following operation is performed.
 
-    - The counter is incremented till it reaches the value of COUNT_END, then an end event is generated.
+- if the SAWTOOTH bitfield is '1':
 
-    - The counter is resetted back to value of COUNT_START bitfield and this process is repeated to generate multiple end events. 
+  - The counter is incremented till it reaches the value of COUNT_END, then an end event is generated.
+
+  - The counter is resetted back to value of COUNT_START bitfield and this process is repeated to generate multiple end events. 
  
-  - if the SAWTOOTH bitfield is '0':
+- if the SAWTOOTH bitfield is '0':
 
-    - The counter is incremented till it reaches the value of COUNT_END.
+  - The counter is incremented till it reaches the value of COUNT_END.
 
-    - Then the counter is decremented till it reaches the value of COUNT_START. (counter goes in a sawtooth fashion)
+  - Then the counter is decremented till it reaches the value of COUNT_START. (counter goes in a sawtooth fashion)
 
-    - Now, an end event is generated. this process is repeated to generate multiple end events.
+  - Now, an end event is generated. this process is repeated to generate multiple end events.
 
-- Re-Initialization of the Updown counter can be done in the following scenarios.
+Re-Initialization of the Updown counter can be done in the following scenarios.
 
-  - Update signal is '1' and the below conditions are met:
+- Update signal is '1' and the below conditions are met:
 
     - When the controller is inactive (active signal is '0'). 
 
     - When an end event is generated. 
+    
+    - If update signal is '1' and above two conditions are not met, then upcounter counter is re-initialized when the next end event is generated, irrespective of update signal value at that instance of time. 
 
-  - If update signal is '1' and above two conditions are not met, then upcounter counter is re-initialized when the next end event is generated, irrespective of update signal value at that instance of time. 
+- Reset signal is '1'.
 
-  - Reset signal is '1'.
-
-- At every positive edge of the clock, The counter value is updated in the REG_TIM[0-3]_COUNTER.
-- If the hard reset is '0', then the all the CSR and internal meta data is set to the reset values.
+At every positive edge of the clock, The counter value is updated in the REG_TIM[0-3]_COUNTER. 
+If the hard reset is '0', then the all the CSR and internal meta data is set to the reset values.
 
 Comparator
 ^^^^^^^^^^
-- Each timer has 4 comparators that can act independently and each comapartor generates a 1 bit PWM output.
-- Comparator compares the timer counter value with compare value and based on CSR configurations of output mode generates a PWM output.
-- The counter value, end event and the output event generated in the updown counter are provided as input to the comparator. 
-- The active, controller reset and update signals are provided by the Timer controller.
-- COMP_THRESHOLD and COMP_OP can only be updated and used by the comparator. when the update signal is '1'. 
-- At every positive edge of the clock, when the output event coming out of the up down counter is '1' and active signal is '1', comparator checks for the following two internal events that can happen, 
+Each timer has 4 comparators that can act independently and each comapartor generates a 1 bit PWM output.
+Comparator compares the timer counter value with compare value and based on CSR configurations of output mode generates a PWM output.
+The counter value, end event and the output event generated in the updown counter are provided as input to the comparator. 
+The active, controller reset and update signals are provided by the Timer controller.
+COMP_THRESHOLD and COMP_OP can only be updated and used by the comparator. when the update signal is '1'. 
 
-  - **(match_event)** is set to '1' when timer counter value reaches the comparator offset 
+At every positive edge of the clock, when the output event coming out of the up down counter is '1' and active signal is '1', comparator checks for the following two internal events that can happen, 
 
-  - **(event_2)** set to '1' in the following two scenarios:
+- **(match_event)** is set to '1' when timer counter value reaches the comparator offset 
 
-    - When the SAWTOOTH bitfield is '1' and end event is '1'.
+- **(event_2)** set to '1' in the following two scenarios:
 
-    - When SAWTOOTH is bitfield is '0' and the timer counter value reaches the COMP_THRESHOLD. 
+  - When the SAWTOOTH bitfield is '1' and end event is '1'.
 
-- Then, based on the match_event, event_2 and COMP_OP value, PWM output is generated accordingly.
+  - When SAWTOOTH is bitfield is '0' and the timer counter value reaches the COMP_THRESHOLD. 
+
+Then, based on the match_event, event_2 and COMP_OP value, PWM output is generated after following operation is performed.
 
 - If COMP_OP value is 3'b000 (OP_SET) 
   
@@ -352,33 +361,33 @@ Comparator
       - The PWM output is made high
       - event_2 is made low.
 
-- By default the PWM output remains the same (state remains same until further change in input) and event_2 is kept low.
-- The PWM output is set to 0. When either the hard reset is triggered or controller reset is '1'.
+By default the PWM output remains the same (state remains same until further change in input) and event_2 is kept low.
+The PWM output is set to 0. When either the hard reset is triggered or controller reset is '1'.
 
 
 Working of APB Advanced Timer for PWM generation:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Based on the detailed working of the submodules above, the working of the APB Advanced timer can be summarised as:
-- FW initialization is performed and the external input/stimulus ext_sig_i is provided.
-- For each Timer module, at every positive edge of the selected clock and when the timer is active, the following operation is performed.
+FW initialization is performed and the external input/stimulus ext_sig_i is provided.
+For each Timer module, at every positive edge of the selected clock and when the timer is active, the following operation is performed:
 
-  - Input stage consumes 48 bit (i.e ext_sig_i and PWM output signals of all the 4 timers) and processes it accordingly based on CLKSEL, INSEL and MODE. Event signal is generated as per the working of input stage.
+- Input stage consumes 48 bit (i.e 32 bit ext_sig_i and 16 bit PWM output signals of all the 4 timers) and processes it accordingly based on CLKSEL, INSEL and MODE. Event signal is generated as per the working of input stage.
 
-  - The Event signal generated in the input stage is scaled down to output scaled event based on the prescaler value by prescaler sub module.
+- The Event signal generated in the input stage is scaled down to output scaled event based on the prescaler value by prescaler sub module.
 
-  - The above output scaled events generated go to the up down counter.
+- The above output scaled events generated go to the up down counter.
 
-  - Depending on various FW configurations of SAWTOOTH, COUNT_START and COUNT_END. The counter value, end event and the output event are generated in the updown counter and are provided as input to the 4 comparators.
+- Depending on various FW configurations of SAWTOOTH, COUNT_START and COUNT_END. The counter value, end event and the output event are generated in the updown counter and are provided as input to the 4 comparators.
 
-  - In each of the comparator, counter value is compared against the COMP_THRESHOLD and 1 bit PWM is generated based on COMP_OP.
+- In each of the comparator, counter value is compared against the COMP_THRESHOLD and 1 bit PWM is generated based on COMP_OP.
 
-  - 4 comparator submodules generate 4 bit PWM signal
+- 4 comparator submodules generate 4 bit PWM signal
 
-  - This above process is repeated with respect to change in the FW configurations to generate the PWM signal.
+- This above process is repeated with respect to change in the FW configurations to generate the PWM signal.
 
-- APB Advanced Timer has 4 timer modules which can generate 4 independent 4-bit PWMs
-- Apart from the PWM signal, APB Advanced Timer also generates output events based on the OUT_SEL_EVT_ENABLE and OUT_SEL_EVT1 bitfiels of REG_EVENT_CFG CSR.
+APB Advanced Timer has 4 timer modules which can generate 4 independent 4-bit PWMs
+Apart from the PWM signal, APB Advanced Timer also generates output events based on the OUT_SEL_EVT_ENABLE and OUT_SEL_EVT1 bitfiels of REG_EVENT_CFG CSR.
 
 System Architecture:
 --------------------
@@ -1682,27 +1691,27 @@ The figure below represents the input and output pins for the APB Advanced Timer
 
 Clock and Reset Signals
 ~~~~~~~~~~~~~~~~~~~~~~~
-  - HCLK: System clock input
-  - HRESETn: Active-low reset input
+- HCLK: System clock input
+- HRESETn: Active-low reset input
 
 APB Interface Signals
 ~~~~~~~~~~~~~~~~~~~~~
-  - PADDR[11:0]: APB address bus input
-  - PSEL: APB peripheral select input
-  - PENABLE: APB enable input
-  - PWRITE: APB write control input (high for write, low for read)
-  - PWDATA[31:0]: APB write data bus input
-  - PREADY: APB ready output to indicate transfer completion
-  - PRDATA[31:0]: APB read data bus output
-  - PSLVERR: APB slave error
+- PADDR[11:0]: APB address bus input
+- PSEL: APB peripheral select input
+- PENABLE: APB enable input
+- PWRITE: APB write control input (high for write, low for read)
+- PWDATA[31:0]: APB write data bus input
+- PREADY: APB ready output to indicate transfer completion
+- PRDATA[31:0]: APB read data bus output
+- PSLVERR: APB slave error
 
 APB Advanced Timer Interface Signals
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  - df_cg_enable_i: clock gate enable input
-  - low_speed_clk_i: Low speed external clock input
-  - ext_sig_i[31:0]: 32 bit GPIO input
-  - events_o[3:0]: Output events from all the 4 timers
-  - ch_0_o[3:0]: PWM output from Timer 0
-  - ch_1_o[3:0]: PWM output from Timer 1
-  - ch_2_o[3:0]: PWM output from Timer 2
-  - ch_3_o[3:0]: PWM output from Timer 3
+- df_cg_enable_i: clock gate enable input
+- low_speed_clk_i: Low speed external clock input
+- ext_sig_i[31:0]: 32 bit GPIO input
+- events_o[3:0]: Output events from all the 4 timers
+- ch_0_o[3:0]: PWM output from Timer 0
+- ch_1_o[3:0]: PWM output from Timer 1
+- ch_2_o[3:0]: PWM output from Timer 2
+- ch_3_o[3:0]: PWM output from Timer 3
