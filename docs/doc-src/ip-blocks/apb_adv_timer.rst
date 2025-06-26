@@ -19,9 +19,9 @@
 
 APB Advanced Timer
 ==================
-APB Advanced Timer generates PWM for the external devices connected to CORE_V_MCU by the use of four programmable 16 bit timers called "channels".
+APB Advanced Timer generates PWM for the external devices connected to CORE_V_MCU and the output events for the CPU subsystem by the use of four programmable 16 bit timers called "channels".
 These four timers can be configured independently to support four unique PWM generation parallely.
-Each 16 bit timer has various configurations of input stage, prescaler, updown counter and comparators.    
+
 
 Features
 --------
@@ -47,6 +47,15 @@ Features
 Block Architecture
 ------------------
 
+APB ADVANCED TIMER supports four 16-bit independent Timers.
+Each 16-bit timer has sub-modules like input stage, prescaler, updown counter and comparators.    
+Each Timer has its own set of CSRs that are used to configure various submodules.
+
+Only single Timer can be configured to generate a 4 bit PWM (or) Two Timers can be configured to generate two 4 bit PWMs parallely (or) 
+Three Timers can be configured to generate three 4 bit PWMs parallely (or) Four Timers can be configured to generate three 4 bit PWMs parallely. 
+
+APB ADVANCED TIMER also generates a 4 bit output event signal to the CPU subsystem which uses a REG_EVENT_CFG CSR which is not related to the Timers.
+
 The figure below is a high-level block diagram of the APB Advanced Timer module:-
 
 .. figure:: apb_adv_timer_block_diagram.png
@@ -55,32 +64,6 @@ The figure below is a high-level block diagram of the APB Advanced Timer module:
    :alt:
 
    APB ADVANCED TIMER Block Diagram
-
-
-The APB ADVANCED TIMER IP consists of the following key components:
-APB control logic, APB ADVANCED TIMER CSRs and 4 Timer modules
-
-APB control logic
-~~~~~~~~~~~~~~~~~
-
-The APB control logic interfaces with the APB bus to decode and execute commands.
-It handles CSR reads and writes according to the APB protocol, providing a standardized interface to the system.
-
-APB ADVANCED TIMER CSRs
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-- There are few common CSRs that store the following configurations.
-
-  - Output event select 
-  - Output event enable  
-  - Clock enable
-
-- There are 4 timer modules and each timer module has its own set of CSRs. Each of the timer module specific CSRs store the following configuration:
-
-  - Arm, Reset, Update, Stop and Start  
-  - Prescalar value, Sawtooth mode, Clksel, Input trigger mode select, Input pins select
-  - Count start and Count emd.
-  - Counter 
-  - Comparator Threshold and Comparator operation mode
 
 Timer Module
 ~~~~~~~~~~~~
@@ -387,7 +370,33 @@ For each Timer module, at every positive edge of the selected clock and when the
 - This above process is repeated with respect to change in the FW configurations to generate the PWM signal.
 
 APB Advanced Timer has 4 timer modules which can generate 4 independent 4-bit PWMs
-Apart from the PWM signal, APB Advanced Timer also generates output events based on the OUT_SEL_EVT_ENABLE and OUT_SEL_EVT1 bitfiels of REG_EVENT_CFG CSR.
+
+Working of APB Advanced Timer for output event generation:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Apart from the PWM signal, APB Advanced Timer also generates output events based on the OUT_SEL_EVT_ENABLE and OUT_SEL_EVT0 bitfiels of REG_EVENT_CFG CSR.
+
+All the four 4-bit PWM signals are merged into 16-bit PWMs where Timer 0 PWM is placed as LSB and Timer 3 PWM is placed at the MSB.
+It selects a signal from a 16-bit using bitfields OUT_SEL_EVT0, OUT_SEL_EVT1, OUT_SEL_EVT2 and OUT_SEL_EVT3 of CSR REG_EVENT_CFG each of this corresponds to the out event bit 0, out event bit 1, out event bit 2 and out event bit 3.
+
+For example: 
+
+if OUT_SEL_EVT0 is '4' then 4th bit of 16 PWM is selected for the 0th bit ouput event generation i.e events_o[0]. 
+Similarly signal selection is done for the events_0[1], events_0[2] and events_0[3] is done using the bitfields OUT_SEL_EVT1, OUT_SEL_EVT2 and OUT_SEL_EVT3.
+
+if the 0th bit in OUT_SEL_EVT_ENABLE bitfield is set then output event events_o[0] generation is enabled. 
+Similarly, 1st bit, 2nd bit and 3rd bit in OUT_SEL_EVT_ENABLE bitfield corresponds to enabling the events_o[1], events_o[2] and events_o[3].
+
+Once the signal selection is decided, APB ADV TIMER drives the events_o as '1' if the below two conditions are satisfied.
+- OUT_SEL_EVT_ENABLE is enabled for the desired events_o
+- detects rising edges (from 0 → 1) on the selected signals
+
+For example: 
+if the 0th bit in OUT_SEL_EVT_ENABLE is set and OUT_SEL_EVT0 is '4' then 4th bit of 16 PWM is selected for the 0th bit ouput event generation i.e events_o[0].
+then events_o[0] will be asserted when there is rising edge detected on the 4th bit of 16-bit PWM signal.
+ 
+
+
 
 System Architecture:
 --------------------
@@ -468,7 +477,8 @@ APB ADVANCED TIMER CSRs
 
 REG_TIM0_CMD 
 ~~~~~~~~~~~~
-  - Address Offset=0x000
+- Address Offset=0x000
+- Type: non-volatile
 
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | Field    | Bits | Default Value   | Access | Description                                                                             |
@@ -489,7 +499,8 @@ REG_TIM0_CMD
 
 REG_TIM0_CFG
 ~~~~~~~~~~~~
-  - Address Offset=0x004
+- Address Offset=0x004
+- Type: non-volatile
 
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | Field    | Bits  | Default Value   | Access | Description                                                                |
@@ -546,7 +557,8 @@ REG_TIM0_CFG
 
 REG_TIM0_TH
 ~~~~~~~~~~~~
-  - Address Offset=0x008
+- Address Offset=0x008
+- Type: non-volatile
 
 +-------------+-------+-----------------+--------+------------------------------------+
 | Field       | Bits  | Default Value   | Access | Description                        |
@@ -559,7 +571,8 @@ REG_TIM0_TH
 
 REG_TIM0_CH0_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x00C
+- Address Offset=0x00C
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -588,7 +601,8 @@ REG_TIM0_CH0_TH
 
 REG_TIM0_CH1_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x010
+- Address Offset=0x010
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -617,7 +631,8 @@ REG_TIM0_CH1_TH
 
 REG_TIM0_CH2_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x014
+- Address Offset=0x014
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -646,7 +661,8 @@ REG_TIM0_CH2_TH
 
 REG_TIM0_CH3_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x018
+- Address Offset=0x018
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -675,7 +691,8 @@ REG_TIM0_CH3_TH
 
 REG_TIM0_CH0_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x01C
+- Address Offset=0x01C
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -690,7 +707,8 @@ REG_TIM0_CH0_LUT
 
 REG_TIM0_CH1_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x020
+- Address Offset=0x020
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -705,7 +723,8 @@ REG_TIM0_CH1_LUT
 
 REG_TIM0_CH2_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x024
+- Address Offset=0x024
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -720,7 +739,8 @@ REG_TIM0_CH2_LUT
 
 REG_TIM0_CH3_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x028
+- Address Offset=0x028
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -735,7 +755,8 @@ REG_TIM0_CH3_LUT
 
 REG_TIM0_COUNTER
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x02C
+- Address Offset=0x02C
+- Type: non-volatile
 
 +------------+------+-----------------+--------+------------------------+
 | Field      | Bits | Default Value   | Access | Description            |
@@ -745,7 +766,8 @@ REG_TIM0_COUNTER
 
 REG_TIM1_CMD 
 ~~~~~~~~~~~~
-  - Address Offset=0x040
+- Address Offset=0x040
+- Type: non-volatile
 
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | Field    | Bits | Default Value   | Access | Description                                                                             |
@@ -766,7 +788,8 @@ REG_TIM1_CMD
 
 REG_TIM1_CFG
 ~~~~~~~~~~~~
-  - Address Offset=0x044
+- Address Offset=0x044
+- Type: non-volatile
 
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | Field    | Bits  | Default Value   | Access | Description                                                                |
@@ -822,7 +845,8 @@ REG_TIM1_CFG
 
 REG_TIM1_TH
 ~~~~~~~~~~~~
-  - Address Offset=0x048
+- Address Offset=0x048
+- Type: non-volatile
 
 +-------------+-------+-----------------+--------+------------------------------------+
 | Field       | Bits  | Default Value   | Access | Description                        |
@@ -835,7 +859,8 @@ REG_TIM1_TH
 
 REG_TIM1_CH0_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x04C
+- Address Offset=0x04C
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -864,7 +889,8 @@ REG_TIM1_CH0_TH
 
 REG_TIM1_CH1_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x050
+- Address Offset=0x050
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -893,7 +919,8 @@ REG_TIM1_CH1_TH
 
 REG_TIM1_CH2_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x054
+- Address Offset=0x054
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -922,7 +949,8 @@ REG_TIM1_CH2_TH
 
 REG_TIM1_CH3_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x058
+- Address Offset=0x058
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -951,7 +979,8 @@ REG_TIM1_CH3_TH
 
 REG_TIM1_CH0_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x05C
+- Address Offset=0x05C
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -966,7 +995,8 @@ REG_TIM1_CH0_LUT
 
 REG_TIM1_CH1_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x060
+- Address Offset=0x060
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -981,7 +1011,8 @@ REG_TIM1_CH1_LUT
 
 REG_TIM1_CH2_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x064
+- Address Offset=0x064
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -996,7 +1027,8 @@ REG_TIM1_CH2_LUT
 
 REG_TIM1_CH3_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x068
+- Address Offset=0x068
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -1011,7 +1043,8 @@ REG_TIM1_CH3_LUT
 
 REG_TIM1_COUNTER
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x06C
+- Address Offset=0x06C
+- Type: non-volatile
 
 +------------+------+-----------------+--------+------------------------+
 | Field      | Bits | Default Value   | Access | Description            |
@@ -1022,7 +1055,8 @@ REG_TIM1_COUNTER
 
 REG_TIM2_CMD 
 ~~~~~~~~~~~~
-  - Address Offset=0x080
+- Address Offset=0x080
+- Type: non-volatile
 
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | Field    | Bits | Default Value   | Access | Description                                                                             |
@@ -1043,7 +1077,8 @@ REG_TIM2_CMD
 
 REG_TIM2_CFG
 ~~~~~~~~~~~~
-  - Address Offset=0x084
+- Address Offset=0x084
+- Type: non-volatile
 
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | Field    | Bits  | Default Value   | Access | Description                                                                |
@@ -1101,7 +1136,8 @@ REG_TIM2_CFG
 REG_TIM2_TH
 ~~~~~~~~~~~~
 
-  - Address Offset=0x088
+- Address Offset=0x088
+- Type: non-volatile
 
 +-------------+-------+-----------------+--------+------------------------------------+
 | Field       | Bits  | Default Value   | Access | Description                        |
@@ -1114,7 +1150,8 @@ REG_TIM2_TH
 
 REG_TIM2_CH0_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x08C
+- Address Offset=0x08C
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -1143,7 +1180,8 @@ REG_TIM2_CH0_TH
 
 REG_TIM2_CH1_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x090
+- Address Offset=0x090
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -1172,7 +1210,8 @@ REG_TIM2_CH1_TH
 
 REG_TIM2_CH2_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x094
+- Address Offset=0x094
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -1202,7 +1241,8 @@ REG_TIM2_CH2_TH
 
 REG_TIM2_CH3_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x098
+- Address Offset=0x098
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -1231,7 +1271,8 @@ REG_TIM2_CH3_TH
 
 REG_TIM2_CH0_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x09C
+- Address Offset=0x09C
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -1246,7 +1287,8 @@ REG_TIM2_CH0_LUT
 
 REG_TIM2_CH1_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x0A0
+- Address Offset=0x0A0
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -1261,7 +1303,8 @@ REG_TIM2_CH1_LUT
 
 REG_TIM2_CH2_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x0A4
+- Address Offset=0x0A4
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -1276,7 +1319,8 @@ REG_TIM2_CH2_LUT
 
 REG_TIM2_CH3_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x0A8
+- Address Offset=0x0A8
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -1291,7 +1335,8 @@ REG_TIM2_CH3_LUT
 
 REG_TIM2_COUNTER
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x0AC
+- Address Offset=0x0AC
+- Type: non-volatile
 
 +------------+------+-----------------+--------+------------------------+
 | Field      | Bits | Default Value   | Access | Description            |
@@ -1302,7 +1347,8 @@ REG_TIM2_COUNTER
 
 REG_TIM3_CMD 
 ~~~~~~~~~~~~
-  - Address Offset=0x0C0
+- Address Offset=0x0C0
+- Type: non-volatile
 
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | Field    | Bits | Default Value   | Access | Description                                                                             |
@@ -1323,7 +1369,8 @@ REG_TIM3_CMD
 
 REG_TIM3_CFG
 ~~~~~~~~~~~~
-  - Address Offset=0x0C4
+- Address Offset=0x0C4
+- Type: non-volatile
 
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | Field    | Bits  | Default Value   | Access | Description                                                                |
@@ -1380,7 +1427,8 @@ REG_TIM3_CFG
 
 REG_TIM3_TH
 ~~~~~~~~~~~~
-  - Address Offset=0x0C8
+- Address Offset=0x0C8
+- Type: non-volatile
 
 +-------------+-------+-----------------+--------+------------------------------------+
 | Field       | Bits  | Default Value   | Access | Description                        |
@@ -1393,7 +1441,8 @@ REG_TIM3_TH
 
 REG_TIM3_CH0_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x0CC
+- Address Offset=0x0CC
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -1422,7 +1471,8 @@ REG_TIM3_CH0_TH
 
 REG_TIM3_CH1_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x0D0
+- Address Offset=0x0D0
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -1451,7 +1501,8 @@ REG_TIM3_CH1_TH
 
 REG_TIM3_CH2_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x0D4
+- Address Offset=0x0D4
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -1480,7 +1531,8 @@ REG_TIM3_CH2_TH
 
 REG_TIM3_CH3_TH
 ~~~~~~~~~~~~~~~
-  - Address Offset=0x0D8
+- Address Offset=0x0D8
+- Type: non-volatile
 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 | Field          | Bits  | Default Value   | Access | Description                                                                      |
@@ -1509,7 +1561,8 @@ REG_TIM3_CH3_TH
 
 REG_TIM3_CH0_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x0DC
+- Address Offset=0x0DC
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -1524,7 +1577,8 @@ REG_TIM3_CH0_LUT
 
 REG_TIM3_CH1_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x0E0
+- Address Offset=0x0E0
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -1539,7 +1593,8 @@ REG_TIM3_CH1_LUT
 
 REG_TIM3_CH2_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x0E4
+- Address Offset=0x0E4
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -1554,7 +1609,8 @@ REG_TIM3_CH2_LUT
 
 REG_TIM3_CH3_LUT
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x0E8
+- Address Offset=0x0E8
+- Type: non-volatile
 
 +-----------+--------+-----------------+--------+-------------------------------------------------------------+
 | Field     | Bits   | Default Value   | Access | Description                                                 |
@@ -1569,7 +1625,8 @@ REG_TIM3_CH3_LUT
 
 REG_TIM3_COUNTER
 ~~~~~~~~~~~~~~~~~
-  - Address Offset=0x0EC
+- Address Offset=0x0EC
+- Type: non-volatile
 
 +------------+------+-----------------+--------+------------------------+
 | Field      | Bits | Default Value   | Access | Description            |
@@ -1580,14 +1637,15 @@ REG_TIM3_COUNTER
 
 REG_EVENT_CFG 
 ~~~~~~~~~~~~~
-  - Address Offset=0x100
+- Address Offset=0x100
+- Type: non-volatile
 
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
 | Field              | Bits  | Default Value   | Access | Description                                                                               |
 +====================+=======+=================+========+===========================================================================================+
 | RESERVED           | 31:20 | 0               | --     | Reserved                                                                                  |
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
-| OUT_SEL_EVT_ENABLE | 19:16 | 0               | RW     | Output event select ENABLE. Each bit represents an event enable for 4 bit event_o output. |
+| OUT_SEL_EVT_ENABLE | 19:16 | 0               | RW     | Output event select ENABLE. Each bit represents an event enable for 4 bit events_o output.|
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
 | OUT_SEL_EVT3       | 15:12 | 0               | RW     | Output event select 3 from a group of 16 PWM outputs                                      |
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
@@ -1595,14 +1653,14 @@ REG_EVENT_CFG
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
 | OUT_SEL_EVT1       | 7:4   | 0               | RW     | Output event select 1 from a group of 16 PWM outputs                                      |
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
-| OUT_SEL_EVT0       | 3:0   | 0               | RW     | Output event select 1 from a group of 16 PWM outputs                                      |
+| OUT_SEL_EVT0       | 3:0   | 0               | RW     | Output event select 0 from a group of 16 PWM outputs                                      |
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
 
 
 REG_CH_EN 
 ~~~~~~~~~~~~~
-  - Address Offset=0x104
-
+- Address Offset=0x104
+- Type: non-volatile
 +------------+-------+-----------------+--------+---------------------------------------------------------------------------------------------------+
 | Field      | Bits  | Default Value   | Access | Description                                                                                       |
 +============+=======+=================+========+===================================================================================================+
@@ -1638,43 +1696,45 @@ Initialization:
 PWM generation or Start the Timer:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- FW initialization is performed.
-- External input/stimulus ext_sig_i is provided by the APB_GPIO.
-- START bitfield in the REG_TIM[0-3]_CMD is set to '1' then all the timer and its sub modules are made to active.
-- This input signal is processed by the APB Advanced Timer according to the CSR configurations.
-- Use the T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER to read the values of counter for each timers.
-- According to the CSR configurations, APB Advanced Timer has 4 Timer modules and maximum of four independent 4-bit PWM outputs are generated which are parsed to the I/O MUX.
-- Based on four 4-bit PWM signals a 4 bit events_o is also generated which is parsed to the Core/CPU.
+FW can start the timer or PWM generation via the below steps.
+
+- When the External input/stimulus ext_sig_i is provided by the APB_GPIO.
+- START bitfield in the REG_TIM[0-3]_CMD is set to '1'and  STOP bitfield in the REG_TIM[0-3]_CMD is set to '0', then all the timer and its sub modules are made to active.
+
+This input signal is processed by the APB Advanced Timer according to the CSR configurations.
+Use the T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER to read the values of counter for each timers.
+According to the CSR configurations, APB Advanced Timer has 4 Timer modules and maximum of four independent 4-bit PWM outputs are generated which are parsed to the I/O MUX.
+
 
 Stop the Timer:
 ~~~~~~~~~~~~~~~
 
-Once the FW initialization is performed and during the process of PWM generation, if the FW wants to stop the PWM generation it can be done by the below steps.
+FW can stop the PWM generation. it can be done by the below steps.
 
-- START bitfield in the REG_TIM[0-3]_CMD is set to '0'.
-- STOP bitfield in the REG_TIM[0-3]_CMD is set to '1' then all the timer and its sub modules are made to inactive state.
-- The counter values will remain same and it will not be incremented after the Timer is stopped. When T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER remain the same after the STOP timer.
-- The PWM output will be holding the previous value. 
+- START bitfield in the REG_TIM[0-3]_CMD is set to '0' and STOP bitfield in the REG_TIM[0-3]_CMD is set to '1' then all the timer and its sub modules are made to inactive state.
+
+The counter values will remain same and it will not be incremented after the Timer is stopped. When T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER remain the same after the STOP timer.
+The PWM output will be holding the previous value. 
 
 Update the Timer:
 ~~~~~~~~~~~~~~~~~
 
-Once the FW initialization is performed and during the process of PWM generation, if the FW wants to update certain configuration or re initialize the CSRs to generate a different kind of PWM. it can be done by the below steps.
+FW can update certain configuration or re initialize the CSRs to generate a different kind of PWM. it can be done by the below steps.
 
-- START bitfield in the REG_TIM[0-3]_CMD is set to '0'.
-- STOP bitfield in the REG_TIM[0-3]_CMD is set to '1' then all the timer and its sub modules are made to inactive state.
-- UPDATE bitfield in the REG_TIM[0-3]_CMD is set to '1'.
-- The PWM output will be holding the previous value and T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER will be holding the COUNT_START value. 
-- All the latest CSR configurations will be parsed to the model and Once the Timer is started, it will generate a PWM output based according to these configurations.
+- START bitfield in the REG_TIM[0-3]_CMD is set to '0' and STOP bitfield in the REG_TIM[0-3]_CMD is set to '1' then all the timer and its sub modules are made to inactive state. UPDATE bitfield in the REG_TIM[0-3]_CMD is set to '1'.
+
+Once the update to the Timer is finished, the PWM output will be holding the previous value and T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER will be holding the COUNT_START value. 
+All the latest CSR configurations will be parsed to the model and Once the Timer is started, it will generate a PWM output based according to these configurations.
 
 Reset the Timer:
 ~~~~~~~~~~~~~~~~~
 
-Once the FW initialization is performed and during the process of PWM generation, if the FW wants to reset the Timer. it can be done by the below steps.
+FW can reset the Timer by the below steps.
 
 - RESET bitfield in the REG_TIM[0-3]_CMD is set to '1'.
-- The PWM output will be zero and T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER will be holding the COUNT_START value. 
-- All the latest CSR configurations will be parsed to the model and Once the Timer is started, it will generate a PWM output based according to these configurations.
+
+Once the reset is issued. The PWM output will be zero and T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER will be holding the COUNT_START value. 
+
 
 
 Pin Diagram
