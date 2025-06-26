@@ -17,9 +17,9 @@
    ^^^^^^^
 .. _apb_advanced_timer:
 
-APB Advanced Timer
+APB ADVANCED TIMER
 ==================
-APB Advanced Timer generates PWM for the external devices connected to CORE_V_MCU and the output events for the CPU subsystem by the use of four programmable 16 bit timers called "channels".
+APB ADVANCED TIMER generates PWM for the external devices connected to CORE_V_MCU and the output events for the CPU subsystem by the use of four programmable 16 bit timers called "channels".
 These four timers can be configured independently to support four unique PWM generation parallely.
 
 
@@ -56,10 +56,10 @@ Three Timers can be configured to generate three 4 bit PWMs parallely (or) Four 
 
 APB ADVANCED TIMER also generates a 4 bit output event signal to the CPU subsystem which uses a REG_EVENT_CFG CSR which is not related to the Timers.
 
-The figure below is a high-level block diagram of the APB Advanced Timer module:-
+The figure below is a high-level block diagram of the APB ADVANCED TIMER module:-
 
 .. figure:: apb_adv_timer_block_diagram.png
-   :name: APB Advanced Timer Block Diagram
+   :name: APB ADVANCED TIMER Block Diagram
    :align: center
    :alt:
 
@@ -96,11 +96,11 @@ Timer controller generates few important signals like active, update and reset. 
 
 The active signal is driven by a different a value in the below 2 conditions: 
 
--  The active signal is driven by value '1', when the START bitfield is '1' in the REG_TIM[0-3]_CMD CSR.
+-  The active signal   driven by value '1', when the START bitfield is '1' in the REG_TIM[0-3]_CMD CSR.
 -  The active signal is driven by value '0'. when the START bitfield is '0' and STOP bitfield is '1' in the REG_TIM[0-3]_CMD CSR. 
 
 The update signal is always driven by the value UPDATE bitfield in the REG_TIM[0-3]_CMD CSR and controller reset signal is driven by the value RESET bitfield in the REG_TIM[0-3]_CMD CSR. 
-The update and reset signals are parsed to all sub modules for the below 2 conditions:
+The update and reset signals are parsed to all sub modules if any one of the below 2 conditions are satisfied:
 
   - if START bitfield is 0 in the REG_TIM[0-3]_CMD CSR.
   - if START bitfield is '1' in the REG_TIM[0-3]_CMD CSR and active signal is '1'. When the Timer starts for the first time.
@@ -348,7 +348,7 @@ By default the PWM output remains the same (state remains same until further cha
 The PWM output is set to 0. When either the hard reset is triggered or controller reset is '1'.
 
 
-Working of APB Advanced Timer for PWM generation:
+Working of APB ADVANCED TIMER for PWM generation:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Based on the detailed working of the submodules above, the working of the APB Advanced timer can be summarised as:
@@ -369,12 +369,12 @@ For each Timer module, at every positive edge of the selected clock and when the
 
 - This above process is repeated with respect to change in the FW configurations to generate the PWM signal.
 
-APB Advanced Timer has 4 timer modules which can generate 4 independent 4-bit PWMs
+APB ADVANCED TIMER has 4 timer modules which can generate 4 independent 4-bit PWMs
 
-Working of APB Advanced Timer for output event generation:
+Working of APB ADVANCED TIMER for output event generation:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Apart from the PWM signal, APB Advanced Timer also generates output events based on the OUT_SEL_EVT_ENABLE and OUT_SEL_EVT0 bitfiels of REG_EVENT_CFG CSR.
+Apart from the PWM signal, APB ADVANCED TIMER also generates output events based on the OUT_SEL_EVT_ENABLE and OUT_SEL_EVT0 bitfiels of REG_EVENT_CFG CSR.
 
 All the four 4-bit PWM signals are merged into 16-bit PWMs where Timer 0 PWM is placed as LSB and Timer 3 PWM is placed at the MSB.
 It selects a signal from a 16-bit using bitfields OUT_SEL_EVT0, OUT_SEL_EVT1, OUT_SEL_EVT2 and OUT_SEL_EVT3 of CSR REG_EVENT_CFG each of this corresponds to the out event bit 0, out event bit 1, out event bit 2 and out event bit 3.
@@ -387,7 +387,7 @@ Similarly signal selection is done for the events_0[1], events_0[2] and events_0
 if the 0th bit in OUT_SEL_EVT_ENABLE bitfield is set then output event events_o[0] generation is enabled. 
 Similarly, 1st bit, 2nd bit and 3rd bit in OUT_SEL_EVT_ENABLE bitfield corresponds to enabling the events_o[1], events_o[2] and events_o[3].
 
-Once the signal selection is decided, APB ADV TIMER drives the events_o as '1' if the below two conditions are satisfied.
+Once the signal selection is decided, APB ADVANCED TIMER drives the events_o as '1' if the below two conditions are satisfied.
 - OUT_SEL_EVT_ENABLE is enabled for the desired events_o
 - detects rising edges (from 0 → 1) on the selected signals
 
@@ -401,23 +401,23 @@ then events_o[0] will be asserted when there is rising edge detected on the 4th 
 System Architecture:
 --------------------
 
-The figure below depicts the connections between the APB ADVANCED TIMER and rest of the modules in Core-V-MCU:-
+The figure below depicts the connections between the APB ADVANCED TIMER and rest of the modules in CORE-V-MCU:-
 
 .. figure:: apb_adv_timer_soc_connections.png
-   :name: APB Advanced Timer SOC Connections
+   :name: APB ADVANCED TIMER SOC Connections
    :align: center
    :alt:
 
-   APB ADVANCED TIMER Core-V-MCU connections diagram
+   APB ADVANCED TIMER CORE-V-MCU connections diagram
 
-- The ext_sig_i input to the APB Advanced Timer is provided by the APB_GPIO. 
-- APB Advanced Timer process this input signals based on the various CSR configurations.
-- APB Advanced Timer generate few output event signals that are further passed as interrupts to the Core complex.
-- APB Advanced Timer generates PWM outputs which are passed to the external devices through I/O mux.
+- The ext_sig_i input to the APB ADVANCED TIMER is provided by the APB_GPIO. 
+- APB ADVANCED TIMER process this input signals based on the various CSR configurations.
+- APB ADVANCED TIMER generate few output event signals that are further passed as interrupts to the Core complex.
+- APB ADVANCED TIMER generates PWM outputs which are passed to the external devices through I/O mux.
 
 Programmers View:
 -----------------
-APB Advanced Timer has 4 Timers and below programming model is followed:  
+APB ADVANCED TIMER has 4 Timers and below programming model is followed:  
 
 Initial Configurations:
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -474,6 +474,11 @@ The counter values of all the 4 Timers can be read via the following CSR bitfiel
 
 APB ADVANCED TIMER CSRs
 -----------------------
+
+Refer to  `Memory Map <https://github.com/openhwgroup/core-v-mcu/blob/master/docs/doc-src/mmap.rst>`_  Map for the peripheral domain addresses of the APB ADVANCED TIMER.
+NOTE: APB ADVANCED TIMER CSRs are non-volatile, meaning that their read value will not be changed by the hardware. A CSR's volatility is indicated by its "type".
+Details of CSR access type are explained `here <https://docs.openhwgroup.org/projects/core-v-mcu/doc-src/mmap.html#csr-access-types>`_.
+
 
 REG_TIM0_CMD 
 ~~~~~~~~~~~~
@@ -1701,9 +1706,9 @@ FW can start the timer or PWM generation via the below steps.
 - When the External input/stimulus ext_sig_i is provided by the APB_GPIO.
 - START bitfield in the REG_TIM[0-3]_CMD is set to '1'and  STOP bitfield in the REG_TIM[0-3]_CMD is set to '0', then all the timer and its sub modules are made to active.
 
-This input signal is processed by the APB Advanced Timer according to the CSR configurations.
+This input signal is processed by the APB ADVANCED TIMER according to the CSR configurations.
 Use the T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER to read the values of counter for each timers.
-According to the CSR configurations, APB Advanced Timer has 4 Timer modules and maximum of four independent 4-bit PWM outputs are generated which are parsed to the I/O MUX.
+According to the CSR configurations, APB ADVANCED TIMER has 4 Timer modules and maximum of four independent 4-bit PWM outputs are generated which are parsed to the I/O MUX.
 
 
 Stop the Timer:
@@ -1740,14 +1745,14 @@ Once the reset is issued. The PWM output will be zero and T[0-3]_COUNTER bitfiel
 Pin Diagram
 -----------
 
-The figure below represents the input and output pins for the APB Advanced Timer:-
+The figure below represents the input and output pins for the APB ADVANCED TIMER:-
 
 .. figure:: apb_adv_timer_pin_diagram.png
    :name: APB_Advanced_Timer_Pin_Diagram
    :align: center
    :alt:
    
-   APB Advanced Timer Pin Diagram
+   APB ADVANCED TIMER Pin Diagram
 
 Clock and Reset Signals
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -1765,7 +1770,7 @@ APB Interface Signals
 - PRDATA[31:0]: APB read data bus output
 - PSLVERR: APB slave error
 
-APB Advanced Timer Interface Signals
+APB ADVANCED TIMER Interface Signals
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 - df_cg_enable_i: clock gate enable input
 - low_speed_clk_i: Low speed external clock input
