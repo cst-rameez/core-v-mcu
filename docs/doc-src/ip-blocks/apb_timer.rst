@@ -68,10 +68,11 @@ Timer_hi and Timer_lo have the same design, with matching CSRs and input/output 
 Timer_lo can be enabled via the FW (ENABLE_BIT bitfield in CFG_REG_LO CSR is '1') or the external device input (When event_lo_i input signal and IEM_BIT bitfield in CFG_REG_LO CSR is '1').
 The Timer counter checks whether the prescaler is enabled or not via the PRESCALER_EN_BIT bitfield in CFG_REG_LO CSR.
 
-- If the prescaler is not enabled. For every positive edge of the clock, Timer counter will start incrementing its internal counter till it reaches the TIMER_CMP_LO and generates the irq_lo_o interrupt.
+If the prescaler is not enabled. For every positive edge of the clock, Timer counter will start incrementing its internal counter till it reaches the TIMER_CMP_LO and generates the irq_lo_o interrupt.
  
-- If the prescaler is enabled. For every positive edge of the clock, the prescaler will start incrementing its internal counter till it reaches the PRESCALER_COMP bitfield in CFG_REG_LO CSR and it sets the prescaler_lo_target_reached to '1'.
-- For every instance of prescaler_lo_target_reached is '1', Timer counter will be enabled and it increments the internal counter by '1' until it reaches the TIMER_CMP_LO and generates the irq_lo_o interrupt.
+If the prescaler is enabled. For every positive edge of the clock, the prescaler will start incrementing its internal counter till it reaches the PRESCALER_COMP bitfield in CFG_REG_LO CSR and it sets the prescaler_lo_target_reached to '1'.
+
+For every instance of prescaler_lo_target_reached is '1', Timer counter will be enabled and it increments the internal counter by '1' until it reaches the TIMER_CMP_LO and generates the irq_lo_o interrupt.
 
 If the CMP_CLR_BIT in CFG_REG_LO CSR is '1' then the Timer counter is reseted and it starts counting again to generate irq_lo_o and the same process is repeated.
 If the ONE_SHOT_BIT in CFG_REG_LO is '1' then the Timer counter is disabled.
@@ -85,7 +86,7 @@ The figure below is a high-level block Diagram of a 32 bit APB Timer:
 
 Prescaler
 ^^^^^^^^^
-Prescalers main objective is to scale down the frequency of the input clock with the PRESCALER_COMP amount of times. where PRESCALER_COMP is the bitfield of CFG_REG_LO CSR.
+Prescaler's main objective is to scale down the frequency of the input clock with the PRESCALER_COMP amount of times. where PRESCALER_COMP is the bitfield of CFG_REG_LO CSR.
 Prescaler generates prescaler_lo_target_reached event after PRESCALER_COMP number of clock cycles. where PRESCALER_COMP is the bitfield of CFG_REG_LO CSR.
 if the REF_CLK_EN_BIT in the CFG_REG_LO CSR is '1', then the prescaler will be in sync with the rising edge of the reference clock.
 
@@ -151,7 +152,6 @@ Timer counter will be enabled and it will start its operation if any of the belo
 - when ENABLE_BIT of CFG_REG_LO is '1', PRESCALER_EN_BIT of CFG_REG_LO is '0' and stoptimer_i is '0' (If prescaler of Timer_lo is disabled).
 - when PRESCALER_EN_BIT and ENABLE_BIT of CFG_REG_LO is '1' and prescaler_lo_target_reached is '1' and stoptimer_i is '0' (If prescaler of Timer_lo is enabled).
 - The ENABLE_BIT of CFG_REG_LO is set by the HW to '1' and enables the timer, if the any of the below conditions is satisfied:
-
    - When the event_lo_i signal is '1' and IEM_BIT of CFG_REG_LO is '1'.
    - When TIMER_START_LO CSR is having any value other than '0'.
 
@@ -175,10 +175,10 @@ all the [*]_LO CSRs for Timer_lo and TIMER_CMP_HI, TIMER_VAL_HI, TIMER_RESET_HI 
 64 bit Timer i.e. cascaded Timer_lo and Timer_hi can be enabled via the FW (ENABLE_BIT bitfield in CFG_REG_LO CSR is '1') or the external device input (When event_lo_i input signal and IEM_BIT bitfield in CFG_REG_LO CSR is '1').
 The Timer counter of Timer_lo checks whether the prescaler is enabled or not via the PRESCALER_EN_BIT bitfield in CFG_REG_LO CSR.
 
-- If the prescaler is not enabled. For every positive edge of the clock, Timer counter will start incrementing its Timer_lo counter till it reaches the TIMER_CMP_LO and Timer_hi counter reaches the TIMER_CMP_HI and it generates the irq_lo_o interrupt.
+If the prescaler is not enabled. For every positive edge of the clock, Timer counter will start incrementing its Timer_lo counter till it reaches the TIMER_CMP_LO and Timer_hi counter reaches the TIMER_CMP_HI and it generates the irq_lo_o interrupt.
  
-- If the prescaler is enabled. For every positive edge of the clock, the prescaler will start incrementing its internal counter till it reaches the PRESCALER_COMP bitfield in CFG_REG_LO CSR and it sets the prescaler_lo_target_reached to '1'.
-- For every instance of prescaler_lo_target_reached is '1', Timer counter will be enabled and it increments the Timer_lo internal counter by '1' until it reaches the TIMER_CMP_LO and Timer_hi counter reaches the TIMER_CMP_HI then generates the irq_lo_o interrupt.
+If the prescaler is enabled. For every positive edge of the clock, the prescaler will start incrementing its internal counter till it reaches the PRESCALER_COMP bitfield in CFG_REG_LO CSR and it sets the prescaler_lo_target_reached to '1'.
+For every instance of prescaler_lo_target_reached is '1', Timer counter will be enabled and it increments the Timer_lo internal counter by '1' until it reaches the TIMER_CMP_LO and Timer_hi counter reaches the TIMER_CMP_HI then generates the irq_lo_o interrupt.
 
 If the CMP_CLR_BIT in CFG_REG_LO CSR is '1' then the Timer counter is reseted and it starts counting again to generate irq_lo_o and the same process is repeated.
 If the ONE_SHOT_BIT in CFG_REG_LO is '1' then the Timer counter is disabled.
@@ -222,7 +222,6 @@ Timer counter for Timer_lo will be enabled and it will start its operation if an
 - when ENABLE_BIT of CFG_REG_LO is '1', PRESCALER_EN_BIT of CFG_REG_LO is '0' and stoptimer_i is '0' (If prescaler of Timer_lo is disabled).
 - when PRESCALER_EN_BIT and ENABLE_BIT of CFG_REG_LO is '1' and prescaler_lo_target_reached is '1' and stoptimer_i is '0' (If prescaler of Timer_lo is enabled).
 - The ENABLE_BIT of CFG_REG_LO is set by the HW to '1' and enables the timer, if any of the below conditions is satisfied:
-
    - When the event_lo_i signal is '1' and IEM_BIT of CFG_REG_LO is '1'.
    - When TIMER_START_LO CSR is having any value other than '0'.
 
@@ -272,19 +271,20 @@ One shot mode:
 ^^^^^^^^^^^^^^^
 
 For 32-bit timer, One shot mode can be enabled parallely for both the Timer_lo and Timer_hi.
-If ONE_SHOT_BIT bitfield of CFG_REG_LO CSR is '1' then One shot mode is enabled and the Timer_lo will be disabled when the Timer_lo counter reaches the TIMER_CMP_LO for the first time. 
-Similarly, if ONE_SHOT_BIT bitfield of CFG_REG_HI CSR is '1' then One shot mode is enabled and the Timer_hi will be disabled when the Timer_hi counter reaches the TIMER_CMP_HI for the first time.
+If ONE_SHOT_BIT bitfield of CFG_REG_LO CSR is '1' then One shot mode is enabled for Timer_lo and the Timer_lo will be disabled when the Timer_lo counter reaches the TIMER_CMP_LO for the first time. 
+Similarly, if ONE_SHOT_BIT bitfield of CFG_REG_HI CSR is '1' then One shot mode is enabled for Timer_hi and the Timer_hi will be disabled when the Timer_hi counter reaches the TIMER_CMP_HI for the first time.
 
 For 64-bit timer,If ONE_SHOT_BIT bitfield of CFG_REG_LO CSR is '1' then One shot mode is enabled 
 64 bit timer i.e cascaded Timer_lo and Timer_hi will be disabled when the Timer_lo counter reaches TIMER_CMP_LO and the Timer_hi counter reaches TIMER_CMP_HI for the first time.
 
 Compare clear mode:
 ^^^^^^^^^^^^^^^^^^^^
+For 32 bit mode, Compare clear mode can be enabled parallely for Timer_lo and Timer_hi
 
-For 32 bit Timer_lo APB Timer,when the counter reaches the TIMER_CMP_LO, the timer is not disabled instead the counter will be reset to '0'.
+For 32 bit Timer_lo APB Timer, Compare clear mode is enabled If CMP_CLR_BIT bitfield of CFG_REG_LO CSR is '1', when the counter reaches the TIMER_CMP_LO, the timer is not disabled instead the counter will be reset to '0'.
 As the timer is still enabled, the counter will be incremented  by '1' for every positive edge of the clock until it reaches the TIMER_CMP_LO. The same process is repeated.
 
-For 32 bit Timer_hi APB Timer, when the counter reaches the TIMER_CMP_HI, the timer is not disabled instead the counter will be reset to '0'.
+For 32 bit Timer_hi APB Timer, Compare clear mode is enabled If CMP_CLR_BIT bitfield of CFG_REG_HI CSR is '1', when the counter reaches the TIMER_CMP_HI, the timer is not disabled instead the counter will be reset to '0'.
 As the timer is still enabled, the  counter will be incremented  by '1' for every positive edge of the clock until it reaches the TIMER_CMP_HI. The same process is repeated.
 
 
@@ -501,8 +501,8 @@ TIMER_START_LO
 +-----------------+------+--------+---------+-----------------------------+
 |     Field       | Bits | Access | Default |        Description          |
 +=================+======+========+=========+=============================+
-| START_LO        | 31:0 |  WS    |   0x0   | Write strobe address for    |
-|                 |      |        |         | starting low counter        |
+| START_LO        | 31:0 |  WS    |   0x0   | Start Timer_lo APB Timer    |
+|                 |      |        |         |                             |
 +-----------------+------+--------+---------+-----------------------------+
 
 TIMER_START_HI 
@@ -514,8 +514,8 @@ TIMER_START_HI
 +-----------------+------+--------+---------+-----------------------------+
 |     Field       | Bits | Access | Default |        Description          |
 +=================+======+========+=========+=============================+
-| START_HI        | 31:0 |  WS    |   0x0   | Write strobe address for    |
-|                 |      |        |         | starting high counter       |
+| START_HI        | 31:0 |  WS    |   0x0   | Start Timer_hi APB Timer    |
+|                 |      |        |         |                             |
 +-----------------+------+--------+---------+-----------------------------+
 
 TIMER_RESET_LO 
@@ -527,8 +527,8 @@ TIMER_RESET_LO
 +-----------------+------+--------+---------+-----------------------------+
 |     Field       | Bits | Access | Default |        Description          |
 +=================+======+========+=========+=============================+
-| RESET_LO        | 31:0 |  WS    |   0x0   | Write strobe address for    |
-|                 |      |        |         | resetting the low counter   |
+| RESET_LO        | 31:0 |  WS    |   0x0   | Reset Timer_lo APB Timer    |
+|                 |      |        |         |                             |
 +-----------------+------+--------+---------+-----------------------------+
 
 TIMER_RESET_HI 
@@ -540,8 +540,8 @@ TIMER_RESET_HI
 +-----------------+------+--------+---------+-----------------------------+
 |     Field       | Bits | Access | Default |        Description          |
 +=================+======+========+=========+=============================+
-| RESET_HI        | 31:0 |  WS    |   0x0   | Write strobe address for    |
-|                 |      |        |         | resetting the high counter  |
+| RESET_HI        | 31:0 |  WS    |   0x0   | Reset Timer_hi APB Timer    |
+|                 |      |        |         |                             |
 +-----------------+------+--------+---------+-----------------------------+
 
 Firmware Guidelines
