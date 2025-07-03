@@ -62,11 +62,11 @@ APB ADVANCED TIMER also generates a 4-bit output event signal to the CPU subsyst
 The figure below is a high-level block diagram of the APB ADVANCED TIMER module:-
 
 .. figure:: apb_adv_timer_block_diagram.png
-  :name: APB ADVANCED TIMER Block Diagram
-  :align: center
-  :alt:
+   :name: APB ADVANCED TIMER Block Diagram
+   :align: center
+   :alt:
 
- APB ADVANCED TIMER Block Diagram
+   APB ADVANCED TIMER Block Diagram
 
 Timer Module
 ~~~~~~~~~~~~
@@ -81,11 +81,11 @@ To generate the PWM, the data flows through the following submodule:
 
 
 .. figure:: apb_adv_timer_diagram_1.png
-  :name: TIMER_Block_Diagram
-  :align: center
-  :alt:
+   :name: TIMER_Block_Diagram
+   :align: center
+   :alt:
 
- TIMER Block Diagram
+   TIMER Block Diagram
 
 
 Timer Controller
@@ -405,12 +405,12 @@ System Architecture:
 
 The figure below depicts the connections between the APB ADVANCED TIMER and the rest of the modules in CORE-V-MCU:-
 
-.. figure:: apb_adv_timer_soc_connections.png 
-  :name: APB ADVANCED TIMER SOC Connections
-  :align: center
-  :alt:
+.. figure:: apb_adv_timer_soc_connections.png
+   :name: APB ADVANCED TIMER SOC Connections
+   :align: center
+   :alt:
 
- APB ADVANCED TIMER CORE-V-MCU connections diagram
+   APB ADVANCED TIMER CORE-V-MCU connections diagram
 
 - The ext_sig_i input to the APB ADVANCED TIMER is provided by the APB_GPIO. 
 - APB ADVANCED TIMER processes these input signals based on the various CSR configurations.
