@@ -51,10 +51,14 @@ APB ADVANCED TIMER supports four 16-bit independent Timers.
 Each 16-bit timer has sub-modules like input stage, prescaler, updown counter and comparators.    
 Each Timer has its own set of CSRs that are used to configure various submodules.
 
-Only single Timer can be configured to generate a 4 bit PWM (or) Two Timers can be configured to generate two 4 bit PWMs parallely (or) 
-Three Timers can be configured to generate three 4 bit PWMs parallely (or) Four Timers can be configured to generate three 4 bit PWMs parallely. 
+APB timers can PWM signals in below combination: -
 
-APB ADVANCED TIMER also generates a 4 bit output event signal to the CPU subsystem which uses a REG_EVENT_CFG CSR which is not related to the Timers.
+- A single timer can generate one 4-bit PWM.
+- Two timers can generate two 4-bit PWMs in parallel.
+- Three timers can generate three 4-bit PWMs in parallel.
+- Four timers can also generate four 4-bit PWMs in parallel.
+
+APB ADVANCED TIMER also generates a 4 bit output event signal to the CPU subsystem which uses a REG_EVENT_CFG CSR.
 
 The figure below is a high-level block diagram of the APB ADVANCED TIMER module:-
 
@@ -108,35 +112,33 @@ The update and reset signals are parsed to all sub modules if any one of the bel
 Input Stage
 ^^^^^^^^^^^
 
-Input stage receives the input (i.e ext_sig_i and PWM output signals of all the 4 timers) and based on CSR configurations, it selects the clock, input pin and operating mode to generate the output event signal.  
-Input stage uses the bitfield INSEL in REG_TIM[0-3]_CFG CSR and selects a signal from a set of signals in ext_sig_i.
-Input stage uses the bitfield CLKSEL in REG_TIM[0-3]_CFG CSR and decides whether the input will be either in sync with the rising edge of the low_speed_clk_i or in sync with the ref clock.
-
+Input stage receives the 48-bit input (i.e 32 bit ext_sig_i from APB GPIO and 4 PWM output signals of the 4 timers each) and based on CSR configurations, it selects the clock, input pin and operating mode to generate the output event signal.  
+it selects the clock, input pin and operating mode to generate the output event signal. Input source is selected based on the value of INSEL bitfied of REG_TIM[0-3]_CFG CSR.
 At every positive edge of the selected clock and selected input signal, Input stage uses the bitfield MODE in REG_TIM[0-3]_CFG CSR to generate output event signal according to the below information:
 
 - If MODE is 3’b000
 
-  - The event is always high
+  - The output event is always high
 
 - If MODE is 3’b001
 
-  - The event is sensitive to the negation of the signal selected
+  - The output event is the negation of the signal selected
 
 - If MODE is 3’b010
 
-  - The output event is sensitive to the input signal selected
+  - The output event is same as the input signal selected
     
 - If MODE is 3’b011
 
-  - The output event is sensitive to the rising edge of the selected signal in sync with the clock.
+  - The output event is high at the rising edge of the selected signal in sync with the clock.
 
 - If MODE is 3’b100
 
-  - The output event is sensitive to the falling edge of the selected signal in sync with the clock.
+  - The output event is high at the falling edge of the selected signal in sync with the clock.
 
 - If MODE is 3’b101
 
-  - The output event is sensitive to both rising edge and falling edge of the selected signal in sync with the clock.
+  - The output event is high at both the rising edge and falling edge of the selected signal in sync with the clock.
 
 - If MODE is 3’b110
 
@@ -148,14 +150,16 @@ At every positive edge of the selected clock and selected input signal, Input st
 
 Prescalar
 ^^^^^^^^^
-Prescaler scales down the high frequency input signal to low frequency output signal by using the prescaler value. 
+The Prescaler module reduces a high-frequency input signal to a lower-frequency output signal based on a user-defined prescaler value.
+The prescaler converts a high frequency input event (event_i) into low frequency output event (event_o) based on below criteria : -
+- When the timer is enabled and an event (event_i) is received from the input-stage module, the prescaler module begins counting clock cycles as specified by the PRESC bitfield in the REG_TIM[0-3]_CFG Control and Status Register (CSR).
+- After the configured number of clock cycles have elapsed, the prescaler generates an output signal (event_o) for the Up-Down counter module.
 
-The PRESC bitfield in the REG_TIM[0-3]_CFG CSR is parsed to Prescaler and the output event signal generated in the previous input stage is scaled based on the PRESC value.
-Prescaler module maintains a internal counter whose initial value is 0. At every positive edge of the clock, counter gets incremented by '1' when event input signal is '1' and Timer is active.
-When the internal counter value matches with the PRESC bitfield output event is set to '1' at positive edge of the clock (the frequency is scaled according to the PRESC CSR value) and the counter is updated to '0'.
-The above process continues and output events are generated.
-
-Both the counter and output event is set to 0. When either the hard reset is triggered or when Timer controller parses the RESET bitfield which is set to '1'.
+The output signal (event_o) is de-asserted under the following conditions:
+- A system reset is received.
+- A reset is issued by the timer controller module.
+- The input-stage module de-asserts the input event signal (i.e., event_i goes low).
+- The timer is disabled by the timer controller.
 
 Updown counter
 ^^^^^^^^^^^^^^
