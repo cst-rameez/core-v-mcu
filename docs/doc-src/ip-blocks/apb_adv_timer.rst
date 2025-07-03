@@ -27,13 +27,13 @@ Features
 
 - Multiple trigger input sources:
 
- - PWM output signals of all 4 timers
- - 32 GPIOs
+  - PWM output signals of all 4 timers
+  - 32 GPIOs
 
 - Multiple clock sources:
 
- - Reference clock at 32kHz
- - FLL clock
+  - Reference clock at 32kHz
+  - FLL clock
 
 - Configurable input trigger modes for each timer
 - Configurable prescaler for each timer
@@ -104,8 +104,8 @@ The active signal is driven by a different value in the following 2 conditions:
 The update signal is always driven by the value UPDATE bitfield in the REG_TIM[0-3]_CMD CSR, and the controller reset signal is driven by the value RESET bitfield in the REG_TIM[0-3]_CMD CSR. 
 The update and reset signals are parsed to all sub-modules if any one of the following 2 conditions is satisfied:
 
- - if START bitfield is 0 in the REG_TIM[0-3]_CMD CSR.
- - if START bitfield is '1' in the REG_TIM[0-3]_CMD CSR and active signal is '1'. When the Timer starts for the first time.
+- if START bitfield is 0 in the REG_TIM[0-3]_CMD CSR.
+- if START bitfield is '1' in the REG_TIM[0-3]_CMD CSR and active signal is '1'. When the Timer starts for the first time.
 
 Input Stage
 ^^^^^^^^^^^
@@ -116,35 +116,35 @@ At every positive edge of the selected clock and selected input signal, the Inpu
 
 - If MODE is 3’b000
 
- - The output event is always high
+  - The output event is always high
 
 - If MODE is 3’b001
 
- - The output event is the negation of the signal selected
+  - The output event is the negation of the signal selected
 
 - If MODE is 3’b010
 
- - The output event is the same as the input signal selected
+  - The output event is the same as the input signal selected
     
 - If MODE is 3’b011
 
- - The output event is high at the rising edge of the selected signal in sync with the clock.
+  - The output event is high at the rising edge of the selected signal in sync with the clock.
 
 - If MODE is 3’b100
 
- - The output event is high at the falling edge of the selected signal in sync with the clock.
+  - The output event is high at the falling edge of the selected signal in sync with the clock.
 
 - If MODE is 3’b101
 
- - The output event is high at both the rising edge and falling edge of the selected signal in sync with the clock.
+  - The output event is high at both the rising edge and falling edge of the selected signal in sync with the clock.
 
 - If MODE is 3’b110
 
- - If the timer is armed, i.e., the CSR ARM is high, then the event is made high for the rising edge of the selected signal and remains the same until the next rising edge of the signal. If the ARM CSR is low, then the output event is low forever.
+  - If the timer is armed, i.e., the CSR ARM is high, then the event is made high for the rising edge of the selected signal and remains the same until the next rising edge of the signal. If the ARM CSR is low, then the output event is low forever.
 
 - If MODE is 3’b111
 
- - If the timer is armed, i.e., the CSR ARM is high, then the event is made high for the falling edge of the selected signal and remains the same until the next falling edge of the signal. If the ARM CSR is low, then the output event is low forever.
+  - If the timer is armed, i.e., the CSR ARM is high, then the event is made high for the falling edge of the selected signal and remains the same until the next falling edge of the signal. If the ARM CSR is low, then the output event is low forever.
 
 Prescalar
 ^^^^^^^^^
@@ -172,27 +172,27 @@ At every positive edge of the clock, if the output event generated from the pres
 
 - if the SAWTOOTH bitfield is '1':
 
- - The counter is incremented till it reaches the value of COUNT_END, then an end event is generated.
+  - The counter is incremented till it reaches the value of COUNT_END, then an end event is generated.
 
- - The counter is reset back to the value of the COUNT_START bitfield, and this process is repeated to generate multiple end events. 
+  - The counter is reset back to the value of the COUNT_START bitfield, and this process is repeated to generate multiple end events. 
    
 - if the SAWTOOTH bitfield is '0':
 
- - The counter is incremented till it reaches the value of COUNT_END.
+  - The counter is incremented till it reaches the value of COUNT_END.
 
- - Then the counter is decremented till it reaches the value of COUNT_START. (counter goes in a sawtooth fashion)
+  - Then the counter is decremented till it reaches the value of COUNT_START. (counter goes in a sawtooth fashion)
 
- - Now, an end event is generated. This process is repeated to generate multiple end events.
+  - Now, an end event is generated. This process is repeated to generate multiple end events.
 
 Re-initialization of the Updown counter can be done in the following scenarios.
 
 - Update signal is '1' and the following conditions are met:
 
- - When the controller is inactive (active signal is '0'). 
+  - When the controller is inactive (active signal is '0'). 
 
- - When an end event is generated. 
+  - When an end event is generated. 
     
- - If the update signal is '1' and the above two conditions are not met, then the updown counter is re-initialized when the next end event is generated, irrespective of the update signal value at that instance of time. 
+  - If the update signal is '1' and the above two conditions are not met, then the updown counter is re-initialized when the next end event is generated, irrespective of the update signal value at that instance of time. 
 
 - Reset signal is '1'.
 
@@ -213,9 +213,9 @@ At every positive edge of the clock, when the output event coming out of the upd
 
 - **(event_2)** set to '1' in the following two scenarios:
 
- - When the SAWTOOTH bitfield is '1' and the end event is '1'.
+  - When the SAWTOOTH bitfield is '1' and the end event is '1'.
 
- - When SAWTOOTH is a bitfield of '0' and the timer counter value reaches the COMP_THRESHOLD. 
+  - When SAWTOOTH is a bitfield of '0' and the timer counter value reaches the COMP_THRESHOLD. 
 
 Then, based on the match_event, event_2, and COMP_OP value, the PWM output is generated after the following operation is performed.
 
@@ -1685,19 +1685,19 @@ Initialization:
 - At every positive edge of the clock, the CSR CSRs are updated based on APB signals.
 - FW can update the below bitfields to any custom value before the START bitfield in the REG_TIM[0-3]_CMD CSR is set to '1' and the timer is not active yet (which means the timer is started for the first time). Otherwise, all the config values of all sub-modules are commanded to be updated to the default.
 
- - The CLK_ENABLE bitfields of REG_CH_EN.
+  - The CLK_ENABLE bitfields of REG_CH_EN.
 
- - The PRESC, SAWTOOTH, CLKSEL, MODE, and INSEL bitfields of REG_TIM[0-3]_CFG.
+  - The PRESC, SAWTOOTH, CLKSEL, MODE, and INSEL bitfields of REG_TIM[0-3]_CFG.
 
- - The COUNT_START and COUNT_END bitfields of REG_TIM[0-3]_TH.
+  - The COUNT_START and COUNT_END bitfields of REG_TIM[0-3]_TH.
 
- - The direction of the updown counter(default is 0)
+  - The direction of the updown counter(default is 0)
 
- - COMP_THRESHOLD and COMP_OP bitfields of REG_TIM[0-3]_CH0_TH, REG_TIM[0-3]_CH1_TH, REG_TIM[0-3]_CH2_TH and REG_TIM[0-3]_CH3_TH
+  - COMP_THRESHOLD and COMP_OP bitfields of REG_TIM[0-3]_CH0_TH, REG_TIM[0-3]_CH1_TH, REG_TIM[0-3]_CH2_TH and REG_TIM[0-3]_CH3_TH
 
- - The OUT_SEL_EVT_ENABLE, OUT_SEL_EVT3, OUT_SEL_EVT2, OUT_SEL_EVT1 and OUT_SEL_EVT0 bitfields of REG_EVENT_CFG 
+  - The OUT_SEL_EVT_ENABLE, OUT_SEL_EVT3, OUT_SEL_EVT2, OUT_SEL_EVT1 and OUT_SEL_EVT0 bitfields of REG_EVENT_CFG 
 
- - Here, the general update of all the config happens in sync with the positive edge of the clock, but the configuration of certain bitfields like COUNT_START, COUNT_END, direction, and SAWTOOTH are updated immediately. 
+  - Here, the general update of all the config happens in sync with the positive edge of the clock, but the configuration of certain bitfields like COUNT_START, COUNT_END, direction, and SAWTOOTH are updated immediately. 
 
 PWM generation or Start the Timer:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
