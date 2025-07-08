@@ -182,10 +182,10 @@ All the CSRs of Timer_lo are used, whereas only few CSRs of Timer_hi like TIMER_
 64 bit Timer can be enabled when the ENABLE_BIT bitfield in CFG_REG_LO CSR is '1' or the external device input (i.e. event_lo_i input signal and IEM_BIT bitfield in CFG_REG_LO CSR is '1').
 The Timer counter of Timer_lo checks whether the prescaler is enabled or not via the PRESCALER_EN_BIT bitfield in CFG_REG_LO CSR.
 
-If the prescaler is not enabled, Only the 64 bit Timer counter is used generates the irq_lo_o interrupt and its working is described in the section `64 bit Timer Counter`_.
+If the prescaler is not enabled, Only the 64 bit Timer counter is used generates the irq_lo_o interrupt and its working is described in the section 64-bit-Timer-Counter_.
 
 If the prescaler is enabled, for every positive edge of either the HCLK or reference clock, the prescaler will start incrementing its internal counter till it reaches the PRESCALER_COMP bitfield in CFG_REG_LO CSR and it sets the prescaler_lo_target_reached to '1' for 1 clock cycle.
-For every instance of prescaler_lo_target_reached is '1', 64 bit Timer counter is enabled and incremented as per the description provided in the section `64 bit Timer Counter`_.
+For every instance of prescaler_lo_target_reached is '1', 64 bit Timer counter is enabled and incremented as per the description provided in the section 64-bit-Timer-Counter_.
 
 If the CMP_CLR_BIT in CFG_REG_LO CSR is '1', then the Timer counter is reset and it starts counting again to generate irq_lo_o and the same process is repeated.
 If the ONE_SHOT_BIT in CFG_REG_LO is '1', then the Timer counter is disabled.
@@ -202,7 +202,8 @@ Prescaler
 Only the prescaler of Timer_lo is used in 64 bit Timer. The working of the prescaler in 64 bit Timer is exactly the same as of the prescaler in 32 bit timer.
 Please refer to the Prescaler_ for more information.  
 
-.. _64 bit Timer Counter:
+.. _64-bit-Timer-Counter:
+
 64 bit Timer Counter 
 ^^^^^^^^^^^^^^^^^^^^
 The 64-bit Timer counter is formed by combining two 32-bit timer counters of Timer_lo and Timer_hi.
