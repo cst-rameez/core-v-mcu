@@ -392,12 +392,10 @@ Working of APB ADVANCED TIMER for output event generation:
 
 Apart from the PWM signal, APB ADVANCED TIMER also generates output events based on the OUT_SEL_EVT_ENABLE and OUT_SEL_EVT0 bitfiels of REG_EVENT_CFG CSR.
 
-All four 4-bit PWM signals are merged into 16-bit PWMs, where Timer 0 PWM is placed as LSB and Timer 3 PWM is placed at the MSB.
-It selects a signal from a 16-bit using bitfields OUT_SEL_EVT0, OUT_SEL_EVT1, OUT_SEL_EVT2, and OUT_SEL_EVT3 of CSR REG_EVENT_CFG, each of which corresponds to the out event bit 0, out event bit 1, out event bit 2, and out event bit 3.
+It selects a signal from a 16-bit PWMs using bitfields OUT_SEL_EVT0, OUT_SEL_EVT1, OUT_SEL_EVT2, and OUT_SEL_EVT3 of CSR REG_EVENT_CFG. Please check the description of the these bitfields for more information.
 
 For example: 
-
-if OUT_SEL_EVT0 is '4' then 4th bit of 16 PWM is selected for the 0th bit ouput event generation i.e events_o[0]. 
+if OUT_SEL_EVT0 is '4' then ch_1_o[0] is selected for the 0th bit ouput event generation i.e events_o[0]. 
 Similarly signal selection is done for the events_0[1], events_0[2] and events_0[3] is done using the bitfields OUT_SEL_EVT1, OUT_SEL_EVT2 and OUT_SEL_EVT3.
 
 if the 0th bit in OUT_SEL_EVT_ENABLE bitfield is set then output event events_o[0] generation is enabled. 
