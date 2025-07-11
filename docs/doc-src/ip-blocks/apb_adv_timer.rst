@@ -1749,39 +1749,39 @@ REG_CH_EN
 +============+=======+=================+========+===================================================================================================+
 | RESERVED   | 31:4  | 0               | --     | Reserved                                                                                          |
 +------------+-------+-----------------+--------+---------------------------------------------------------------------------------------------------+
-| CLK_ENABLE | 3:0   | 0               | RW     | Each bit acts as clock enable for each timer. For eg: if 2nd bit is set Timer 2 clock is enabled. |
+| CLK_ENABLE | 3:0   | 0               | RW     | Each bit acts as HCLK clock enable for each timer.                                                |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’0000 - Clock is disabled for all the Timers                                                    |
+|            |       |                 |        | 0b’0000 - HCLK clock is disabled for all the Timers                                                    |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’0001 - Clock is enabled for Timer0                                                             |
+|            |       |                 |        | 0b’0001 - HCLK clock is enabled for Timer0                                                             |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’0010 - Clock is enabled for Timer1                                                             |
+|            |       |                 |        | 0b’0010 - HCLK clock is enabled for Timer1                                                             |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’0011 - Clock is enabled for Timer0 and Timer1                                                  |
+|            |       |                 |        | 0b’0011 - HCLK clock is enabled for Timer0 and Timer1                                                  |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’0100 - Clock is enabled for Timer2                                                             |
+|            |       |                 |        | 0b’0100 - HCLK clock is enabled for Timer2                                                             |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’0101 - Clock is enabled for Timer0 and Timer2                                                  |
+|            |       |                 |        | 0b’0101 - HCLK clock is enabled for Timer0 and Timer2                                                  |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’0110 - Clock is enabled for Timer1 and Timer2                                                  |
+|            |       |                 |        | 0b’0110 - HCLK clock is enabled for Timer1 and Timer2                                                  |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’0111 - Clock is enabled for Timer0, Timer1 and Timer2                                          |
+|            |       |                 |        | 0b’0111 - HCLK clock is enabled for Timer0, Timer1 and Timer2                                          |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’1000 - Clock is enabled for Timer3                                                             |
+|            |       |                 |        | 0b’1000 - HCLK clock is enabled for Timer3                                                             |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’1001 - Clock is enabled for Timer0 and Timer3                                                  |
+|            |       |                 |        | 0b’1001 - HCLK clock is enabled for Timer0 and Timer3                                                  |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’1010 - Clock is enabled for Timer1 and Timer3                                                  |
+|            |       |                 |        | 0b’1010 - HCLK clock is enabled for Timer1 and Timer3                                                  |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’1011 - Clock is enabled for Timer0, Timer1 and Timer3                                          |
+|            |       |                 |        | 0b’1011 - HCLK clock is enabled for Timer0, Timer1 and Timer3                                          |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’1100 - Clock is enabled for Timer2 and Timer3                                                  |
+|            |       |                 |        | 0b’1100 - HCLK clock is enabled for Timer2 and Timer3                                                  |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’1101 - Clock is enabled for Timer0, Timer2 and Timer3                                          |
+|            |       |                 |        | 0b’1101 - HCLK clock is enabled for Timer0, Timer2 and Timer3                                          |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’1110 - Clock is enabled for Timer1, Timer2 and Timer3                                          |
+|            |       |                 |        | 0b’1110 - HCLK clock is enabled for Timer1, Timer2 and Timer3                                          |
 |            |       |                 |        |                                                                                                   |
-|            |       |                 |        | 0b’1111 - Clock is enabled for all the Timers                                                     |
+|            |       |                 |        | 0b’1111 - HCLK clock is enabled for all the Timers                                                     |
 +------------+-------+-----------------+--------+---------------------------------------------------------------------------------------------------+
 
 Firmware Guidelines
