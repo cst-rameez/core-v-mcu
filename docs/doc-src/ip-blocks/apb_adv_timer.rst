@@ -390,25 +390,20 @@ APB ADVANCED TIMER has 4 timer modules, which can generate 4 independent 4-bit P
 Working of APB ADVANCED TIMER for output event generation:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Apart from the PWM signal, APB ADVANCED TIMER also generates output events based on the OUT_SEL_EVT_ENABLE and OUT_SEL_EVT0 bitfiels of REG_EVENT_CFG CSR.
+Apart from generating PWM signals, the APB ADVANCED TIMER can also generate output events using bitfields in the REG_EVENT_CFG CSR.
 
-It selects a signal from a 16-bit PWMs using bitfields OUT_SEL_EVT0, OUT_SEL_EVT1, OUT_SEL_EVT2, and OUT_SEL_EVT3 of CSR REG_EVENT_CFG. Please check the description of the these bitfields for more information.
+For every positive edge of the HCLK, the output events are generated after the following operation is performed.
 
-For example: 
-if OUT_SEL_EVT0 is '4' then ch_1_o[0] is selected for the 0th bit ouput event generation i.e events_o[0]. 
-Similarly signal selection is done for the events_0[1], events_0[2] and events_0[3] is done using the bitfields OUT_SEL_EVT1, OUT_SEL_EVT2 and OUT_SEL_EVT3.
+- The OUT_SEL_EVT_ENABLE bitfield determines which output event lines (events_o[0] to events_o[3]) are enabled.
+- Each bitfield OUT_SEL_EVT0 to OUT_SEL_EVT3 selects one of the 16 PWM signals (ch_0_o[0] to ch_0_o[3], ch_1_o[0] to ch_1_o[3], ch_2_o[0] to ch_2_o[3] and ch_3_o[0] to ch_3_o[3]) to be monitored for edge detection, corresponding to output event lines events_o[0] to events_o[3].
+- The output events are triggered at the rising edge of the selected PWM signal and will be de-asserted in the next HCLK clock cycle.
 
-if the 0th bit in OUT_SEL_EVT_ENABLE bitfield is set then output event events_o[0] generation is enabled. 
-Similarly, 1st bit, 2nd bit and 3rd bit in OUT_SEL_EVT_ENABLE bitfield corresponds to enabling the events_o[1], events_o[2] and events_o[3].
+For every positive edge of the HCLK, the same process is repeated to generate the output events.
 
-Once the signal selection is decided, APB ADVANCED TIMER drives the events_o as '1' if the following two conditions are satisfied.
-- OUT_SEL_EVT_ENABLE is enabled for the desired events_o
-- detects rising edges (from 0 → 1) on the selected signals
+Example:
 
-For example: 
-if the 0th bit in OUT_SEL_EVT_ENABLE is set and OUT_SEL_EVT0 is '4' then 4th bit of 16 PWM is selected for the 0th bit ouput event generation i.e events_o[0].
-Then events_o[0] will be asserted when the rising edge is detected on the 4th bit of the 16-bit PWM signal.
-   
+If bit 0 of OUT_SEL_EVT_ENABLE is set (OUT_SEL_EVT_ENABLE[0] = 1) and OUT_SEL_EVT0 is set to 4, then events_o[0] will asserted at the rising edge on ch_1_o[0]. Similarly if OUT_SEL_EVT_ENABLE is set to 8 and  OUT_SEL_EVT3 is set to 1, the event_o[3] will be asserted bassed on ch_0_o[1] pwm signal.
+This mapping allows flexible routing of PWM signal transitions to specific output events.
 
 System Architecture:
 --------------------
@@ -1755,21 +1750,37 @@ REG_CH_EN
 | RESERVED   | 31:4  | 0               | --     | Reserved                                                                                          |
 +------------+-------+-----------------+--------+---------------------------------------------------------------------------------------------------+
 | CLK_ENABLE | 3:0   | 0               | RW     | Each bit acts as clock enable for each timer. For eg: if 2nd bit is set Timer 2 clock is enabled. |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’0000 - Clock is disabled for all the Timers                                                    |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’0001 - Clock is enabled for Timer0                                                             |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’0010 - Clock is enabled for Timer1                                                             |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’0011 - Clock is enabled for Timer0 and Timer1                                                  |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’0100 - Clock is enabled for Timer2                                                             |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’0101 - Clock is enabled for Timer0 and Timer2                                                  |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’0110 - Clock is enabled for Timer1 and Timer2                                                  |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’0111 - Clock is enabled for Timer0, Timer1 and Timer2                                          |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’1000 - Clock is enabled for Timer3                                                             |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’1001 - Clock is enabled for Timer0 and Timer3                                                  |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’1010 - Clock is enabled for Timer1 and Timer3                                                  |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’1011 - Clock is enabled for Timer0, Timer1 and Timer3                                          |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’1100 - Clock is enabled for Timer2 and Timer3                                                  |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’1101 - Clock is enabled for Timer0, Timer2 and Timer3                                          |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’1110 - Clock is enabled for Timer1, Timer2 and Timer3                                          |
+|            |       |                 |        |                                                                                                   |
 |            |       |                 |        | 0b’1111 - Clock is enabled for all the Timers                                                     |
 +------------+-------+-----------------+--------+---------------------------------------------------------------------------------------------------+
 
