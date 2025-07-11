@@ -33,7 +33,7 @@ Features
 - Multiple clock sources:
 
   - Reference clock at 32kHz
-  - FLL clock
+  - HCLK clock
 
 - Configurable input trigger modes for each timer
 - Configurable prescaler for each timer
@@ -57,7 +57,7 @@ APB timers can generate PWM signals in the following combination: -
 - Three timers can generate three 4-bit PWMs in parallel.
 - Four timers can also generate four 4-bit PWMs in parallel.
 
-APB ADVANCED TIMER also generates a 4-bit output event signal to the CPU subsystem, which uses a REG_EVENT_CFG CSR.
+APB ADVANCED TIMER also generates a 4-bit output event signal to the CPU subsystem, depending on the configuration of REG_EVENT_CFG CSR.
 
 The figure below is a high-level block diagram of the APB ADVANCED TIMER module:-
 
@@ -90,29 +90,40 @@ To generate the PWM, the data flows through the following submodule:
 
 Timer Controller
 ^^^^^^^^^^^^^^^^
-The timer controller generates a few important signals, like active, update, and reset. It parses and controls other submodules through these signals. 
+The timer controller generates important signals, like active, update, and reset, arm and update counter. It controls other submodules through these signals. 
 
--    Active signal: It is a control signal through which a sub-module can either enable or disable its operations.
--    update signal: It informs the sub-module when to update the latest configured CSR values to perform their operations.
--    reset signal: It resets the submodules.
+- The active signal: It is a control signal through which a sub-module can either enable or disable its operations.
+- The update signal: It informs the sub-module when to update the latest configured CSR values to perform their operations.
+- The reset signal: It resets the submodules.
+- The arm signal: It is passed to input stage for further processing of the input signal.
+- The update counter signal: It informs the updown counter to update the latest configured CSR values to perform its operations.
 
-The active signal is driven by a different value in the following 2 conditions: 
+The active signal is enabled(1) or disabled(0) using below conditions: 
 
--    The active signal driven by value '1', when the START bitfield is '1' in the REG_TIM[0-3]_CMD CSR.
--    The active signal is driven by value '0'. When the START bitfield is '0' and the STOP bitfield is '1' in the REG_TIM[0-3]_CMD CSR. 
+- The active signal for each timer is driven high ('1') when the corresponding START bitfield is set to '1' in its respective REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3).
+- The active signal for each timer is driven low ('0') when the corresponding START bitfield is '0' and the STOP bitfield is set to '1' in its respective REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3). 
 
-The update signal is always driven by the value UPDATE bitfield in the REG_TIM[0-3]_CMD CSR, and the controller reset signal is driven by the value RESET bitfield in the REG_TIM[0-3]_CMD CSR. 
-The update and reset signals are parsed to all sub-modules if any one of the following 2 conditions is satisfied:
+The update and update counter signals are always driven by the UPDATE bitfield value in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3), and the controller reset signal is driven by the RESET bitfield value in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3).
+The update, update counter and reset signals are passed to all sub-modules if any one of the following 2 conditions is satisfied:
 
-- if START bitfield is 0 in the REG_TIM[0-3]_CMD CSR.
-- if START bitfield is '1' in the REG_TIM[0-3]_CMD CSR and active signal is '1'. When the Timer starts for the first time.
+- If the START bitfield is '0' in the respective REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3).
+- If the START bitfield is '1' in the respective REG_TIMx_CMD CSR and the active signal is driven high ('1'), this condition applies when the timer starts for the first time.
+
 
 Input Stage
 ^^^^^^^^^^^
 
-Input stage receives the 48-bit input (i.e, 32-bit ext_sig_i from APB GPIO and 4 PWM output signals of the 4 timers each) and based on CSR configurations, it selects the clock, input pin, and operating mode to generate the output event signal.    
-It selects the clock, input pin, and operating mode to generate the output event signal. Input source is selected based on the value of the INSEL bitfield of REG_TIM[0-3]_CFG CSR.
-At every positive edge of the selected clock and selected input signal, the Input stage uses the bitfield MODE in REG_TIM[0-3]_CFG CSR to generate an output event signal according to the information below:
+Input stage receives the 48-bit input (i.e, 32-bit ext_sig_i from APB GPIO and 16-bit PWM signals (4-bit PWM output signals of the 4 timers each)).
+Depending on CSR configurations, it selects the clock, input pin, and operating mode to generate the output event signal.
+Input source is selected based on the value of the INSEL bitfield of REG_TIMx_CFG CSR (where x = 0 to 3 for Timer0 to Timer3).
+If the INSEL bitfield is '7', then 7th bit of 48 bit input is selected for further processing. 
+Input stage operation is synchronized using HCLK or reference clock, based on the value of the CLKSEL bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3):
+
+- If CLKSEL = 1, it process the input signal as per MODE at every posistive edge of the reference clock.
+
+- If REF_CLK_EN_BIT = 0, it process the input signal as per MODE at every posistive edge of the system clock (HCLK). 
+When the timer controller asserts the active signal, then at every positive edge of the selected clock and selected input signal, 
+the Input stage uses the bitfield MODE in REG_TIMx_CFG CSR (where x = 0 to 3 for Timer0 to Timer3) to generate an output event signal according to the information below:
 
 - If MODE is 3’b000
 
@@ -140,7 +151,7 @@ At every positive edge of the selected clock and selected input signal, the Inpu
 
 - If MODE is 3’b110
 
-  - If the timer is armed, i.e., the CSR ARM is high, then the event is made high for the rising edge of the selected signal and remains the same until the next rising edge of the signal. If the ARM CSR is low, then the output event is low forever.
+  - If the timer is armed, i.e., the ARM is high, then the event is made high for the rising edge of the selected signal and remains the same until the next rising edge of the signal. If the ARM CSR is low, then the output event is low forever.
 
 - If MODE is 3’b111
 
@@ -148,12 +159,16 @@ At every positive edge of the selected clock and selected input signal, the Inpu
 
 Prescalar
 ^^^^^^^^^
-The Prescaler module reduces a high-frequency input signal to a lower-frequency output signal based on a user-defined prescaler value.
-The prescaler converts a high-frequency input event (event_i) into a low-frequency output event (event_o) based on the following criteria: -
-- When the timer is enabled and an event (event_i) is received from the input-stage module, the prescaler module begins counting clock cycles as specified by the PRESC bitfield in the REG_TIM[0-3]_CFG Control and Status Register (CSR).
-- After the configured number of clock cycles has elapsed, the prescaler generates an output signal (event_o) for the Up-Down counter module.
+The prescaler converts a high-frequency input event (event_i) into a low-frequency output event (event_o).
+
+Prescaler maintains a prescaler counter whose initial value is '0'.
+For every positive edge of the HCLK, when the timer controller asserts the active signal and input-stage asserts the event (event_i), the prescaler counter is incremented by '1'.
+The prescaler counter is incremented in the similar fashion until it reaches the PRESC bitfield in the REG_TIMx_CFG CSR (where x = 0 to 3 for Timer0 to Timer3), then generates an output signal (event_o) for the Up-Down counter module.
+In the next positive edge of the HCLK, prescaler counter and event_o are reset to '0'.
+The prescaler counter starts incrementing and the same process repeats to set the event_o multiple times.
 
 The output signal (event_o) is de-asserted under the following conditions:
+
 - A system reset is received.
 - A reset is issued by the timer controller module.
 - The input-stage module de-asserts the input event signal (i.e., event_i goes low).
@@ -161,20 +176,24 @@ The output signal (event_o) is de-asserted under the following conditions:
 
 Updown counter
 ^^^^^^^^^^^^^^
-The updown counter manages the timer counter values based on CSR configurations and generates the following outputs: counter value, end event, and the output event.
+The updown counter manages the timer counter values based on CSR configurations and generates the following outputs: 
+
+- The counter value.
+- The end event. 
+- The output event.
 
 The output event generated from the prescaler sub-module is provided as the input for the updown counter.
 At every positive edge of the clock, if the active signal is '1', then the output event is driven by the value of the output event generated from the prescaler.
 The active, controller reset, and update signals are provided by the Timer controller.    
 The updown counter maintains a counter and direction(0- up and 1- down).
-During the initialization, the counter value is set to COUNT_START and the direction to 0, and any new values of SAWTOOTH, COUNT_START, and COUNT_END bitfield can be provided by FW. 
+During the initialization, the counter value is set to COUNT_START and the direction to 0.
 At every positive edge of the clock, if the output event generated from the prescaler is '1' and the active signal is '1', then the following operation is performed.
 
 - if the SAWTOOTH bitfield is '1':
 
   - The counter is incremented till it reaches the value of COUNT_END, then an end event is generated.
 
-  - The counter is reset back to the value of the COUNT_START bitfield, and this process is repeated to generate multiple end events. 
+  - After the end event is generated , the counter is reset back to the value of the COUNT_START bitfield, and this process is repeated to generate multiple end events. 
    
 - if the SAWTOOTH bitfield is '0':
 
@@ -184,19 +203,16 @@ At every positive edge of the clock, if the output event generated from the pres
 
   - Now, an end event is generated. This process is repeated to generate multiple end events.
 
-Re-initialization of the Updown counter can be done in the following scenarios.
+Re-initialization of the Updown counter can be done in any of the following scenarios.
 
-- Update signal is '1' and the following conditions are met:
-
-  - When the controller is inactive (active signal is '0'). 
-
-  - When an end event is generated. 
-    
-  - If the update signal is '1' and the above two conditions are not met, then the updown counter is re-initialized when the next end event is generated, irrespective of the update signal value at that instance of time. 
-
+- The update counter signal is '1' and the controller is inactive (active signal is '0'). 
+- The update counter signal is '1' and the end event is generated.  
 - Reset signal is '1'.
 
-At every positive edge of the clock, the counter value is updated in the REG_TIM[0-3]_COUNTER. 
+If the update counter signal is '1' and either controller is active or the end event is not generated, then the updown counter goes into pending initialization stage.
+In the pending initization stage, the updown counter is re-initialized when the next end event is generated, irrespective of the update counter signal value at that instance of time. 
+
+At every positive edge of the clock, the counter value is updated in the REG_TIMx COUNTER CSR (where x = 0 to 3 for Timer0 to Timer3) for the respective counter. 
 If the hard reset is '0', then all the CSR and internal metadata are set to the reset values.
 
 Comparator
@@ -204,30 +220,30 @@ Comparator
 Each timer has 4 comparators that can act independently, and each comparator generates a 1-bit PWM output.
 Comparator compares the timer counter value with the compare value and, based on the CSR configurations of output mode, generates a PWM output.
 The counter value, end event, and the output event generated in the updown counter are provided as input to the comparator. 
-The active, controller reset, and update signals are provided by the Timer controller.
-COMP_THRESHOLD and COMP_OP can only be updated and used by the comparator. When the update signal is '1'. 
+The active, reset, and update signals are provided by the Timer controller.
 
 At every positive edge of the clock, when the output event coming out of the updown counter is '1' and the active signal is '1', the comparator checks for the following two internal events that can happen, 
 
-- **(match_event)** is set to '1' when the timer counter value reaches the comparator offset 
+- **(match_event)** is set to '1' when the counter value reaches the COMP_THRESHOLD.
 
 - **(event_2)** set to '1' in the following two scenarios:
 
   - When the SAWTOOTH bitfield is '1' and the end event is '1'.
 
-  - When SAWTOOTH is a bitfield of '0' and the timer counter value reaches the COMP_THRESHOLD. 
+  - When SAWTOOTH is a bitfield of '0' and the counter value reaches the COMP_THRESHOLD. 
 
+The PWM output ch_x_o[y] is generated (where x = 0 to 3 for Timer0 to Timer3 and y = 0, 1, 2 and 3 referes to 0th, 1st, 2nd and 3rd index of a 4 bit PWM)
 Then, based on the match_event, event_2, and COMP_OP value, the PWM output is generated after the following operation is performed.
 
 - If COMP_OP value is 3'b000 (OP_SET) 
   
   - If a match_event is high
   
-    - The PWM output is made high
+    - The PWM output ch_x_o[y] is made high
   
   - Else, if a match_event is low
   
-    - The PWM output remains the same.
+    - The PWM output ch_x_o[y] remains the same.
 
 - If COMP_OP value is 3'b001 (OP_TOGRST)
   
@@ -235,22 +251,22 @@ Then, based on the match_event, event_2, and COMP_OP value, the PWM output is ge
 
     - If a match_event is high
 
-      - The PWM output is made toggled.
+      - The PWM output ch_x_o[y] is toggled.
     
     - Else, if event_2 is high 
     
-      - The PWM output is made low.
+      - The PWM output ch_x_o[y] is made low.
 
   - When Sawtooth Mode is OFF
 
     - If match_event is high and event_2 is low
 
-      - The PWM output is toggled.
+      - The PWM output ch_x_o[y] is toggled.
       - event_2 is made high.
 
     - Else, if match_event is high and event_2 is high
     
-      - The PWM output is made low
+      - The PWM output ch_x_o[y] is made low
       - event_2 is made low.
 
 - If COMP_OP value is 3'b010 (OP_SETRST)
@@ -259,43 +275,43 @@ Then, based on the match_event, event_2, and COMP_OP value, the PWM output is ge
 
     - If a match_event is high 
   
-      - the PWM output is made high
+      - the PWM output ch_x_o[y] is made high
   
     - Else, if event_2 is high
   
-      - then PWM output is made low.
+      - then PWM output ch_x_o[y] is made low.
 
   - When Sawtooth Mode is OFF
     
     - If match_event is high and event_2 is low
     
-      - The PWM output is made high
+      - The PWM output ch_x_o[y] is made high
       - event_2 is made high.
     
     - Else, if match_event is high and event_2 also is high
     
-      - PWM output is made low
+      - PWM output ch_x_o[y] is made low
       - event_2 is made low.
 
 - If COMP_OP value is 3'b011 (OP_TOG) 
 
   - If a match_event is high
   
-    - The PWM output is toggled
+    - The PWM output ch_x_o[y] is toggled
   
   - Else, if a match_event is low
   
-    - The PWM output remains the same.
+    - The PWM output ch_x_o[y] remains the same.
 
 - If COMP_OP value is 3'b100 (OP_RST)
 
   - If a match_event is high
   
-    - The PWM output is made low
+    - The PWM output ch_x_o[y] is made low
   
   - Else, if a match_event is low
   
-    - The PWM output remains the same.
+    - The PWM output ch_x_o[y] remains the same.
 
 
 - If COMP_OP value is 3'b101 (OP_TOGSET)
@@ -304,22 +320,22 @@ Then, based on the match_event, event_2, and COMP_OP value, the PWM output is ge
 
     - If a match_event is high
   
-      - The PWM output is toggled
+      - The PWM output ch_x_o[y] is toggled
   
     - Else, if event_2 is high
   
-      - then PWM output is made high.
+      - then PWM output ch_x_o[y] is made high.
 
   - When Sawtooth Mode is OFF
   
     - If match_event is high and event_2 is low
   
-      - The PWM output is toggled
+      - The PWM output ch_x_o[y] is toggled
       - event_2 is made high
   
     - Else, if match_event is high and event_2 also is high
   
-      - The PWM output is made high
+      - The PWM output ch_x_o[y] is made high
       - event_2 is made low
 
 - If COMP_OP value is 3'b110 (OP_RSTSET)
@@ -328,34 +344,32 @@ Then, based on the match_event, event_2, and COMP_OP value, the PWM output is ge
   
     - If a match_event is high
   
-      - The PWM output is made low
+      - The PWM output ch_x_o[y] is made low
   
     - Else, if event_2 is high
   
-      - The PWM output is made high
+      - The PWM output ch_x_o[y] is made high
 
   - When Sawtooth Mode is OFF
   
     - If match_event is high and event_2 is low
   
-      - The PWM output is made low
+      - The PWM output ch_x_o[y] is made low
       - event_2 is made high
   
     - Else, if match_event is high and event_2 also is high
   
-      - The PWM output is made high
+      - The PWM output ch_x_o[y] is made high
       - event_2 is made low.
 
 By default, the PWM output remains the same (state remains the same until further change in input), and event_2 is kept low.
 The PWM output is set to 0. When either the hard reset is triggered or the controller reset is '1'.
-
+COMP_THRESHOLD and COMP_OP can only be updated, when the update signal is '1'.
 
 Working of APB ADVANCED TIMER for PWM generation:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Based on the detailed working of the submodules above, the working of the APB Advanced timer can be summarised as:
-FW initialization is performed, and the external input/stimulus ext_sig_i is provided.
-For each Timer module, at every positive edge of the selected clock and when the timer is active, the following operation is performed:
+Based on the detailed working of the submodules above, for each Timer module, at every positive edge of the selected clock and when the timer is active, the following operation is performed:
 
 - Input stage consumes 48 bits (i.e, 32 32-bit ext_sig_i and 16-bit PWM output signals of all the 4 timers) and processes it accordingly based on CLKSEL, INSEL, and MODE. The event signal is generated as per the working of the input stage.
 
@@ -369,7 +383,7 @@ For each Timer module, at every positive edge of the selected clock and when the
 
 - 4 comparator submodules generate 4 4-bit PWM signals
 
-- The above process is repeated concerning changes in the FW configurations to generate the PWM signal.
+- The above process is repeated until the timer is disabled. 
 
 APB ADVANCED TIMER has 4 timer modules, which can generate 4 independent 4-bit PWMs
 
@@ -397,8 +411,6 @@ For example:
 if the 0th bit in OUT_SEL_EVT_ENABLE is set and OUT_SEL_EVT0 is '4' then 4th bit of 16 PWM is selected for the 0th bit ouput event generation i.e events_o[0].
 Then events_o[0] will be asserted when the rising edge is detected on the 4th bit of the 16-bit PWM signal.
    
-
-
 
 System Architecture:
 --------------------
@@ -430,16 +442,16 @@ Timer module specific configurations:
 
 As we have 4 Timer modules. Each timer has to be configured with appropriate values.
 
-- Configure input clock source using CLKSEL bitfield in the REG_TIM[0-3]_CFG.
-- Configure input trigger mode using the MODE bitfield in the REG_TIM[0-3]_CFG.
-- Configure which input has to be selected using the INSEL bitfield in the REG_TIM[0-3]_CFG.
-- Configure prescaler value for scaling down the frequency using the PRESC bitfield in the REG_TIM[0-3]_CFG.
-- Configure sawtooth mode through which the updown down counter operates using the SAWTOOTH bitfield in the REG_TIM[0-3]_CFG.
-- Configure updown counter start value and end value using COUNT_START and COUNT_END bitfield respectively in the REG_TIM[0-3]_TH.
-- Configure comparator 0 operation and comparator 0 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH0_TH.
-- Configure comparator 1 operation and comparator 1 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH1_TH.
-- Configure comparator 2 operation and comparator 2 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH2_TH.
-- Configure comparator 3 operation and comparator 3 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIM[0-3]_CH3_TH.
+- Configure input clock source using CLKSEL bitfield in the REG_TIMx_CFG CSR (where x = 0 to 3 for Timer0 to Timer3).
+- Configure input trigger mode using the MODE bitfield in the REG_TIMx_CFG CSR (where x = 0 to 3 for Timer0 to Timer3).
+- Configure which input has to be selected using the INSEL bitfield in the REG_TIMx_CFG CSR (where x = 0 to 3 for Timer0 to Timer3).
+- Configure prescaler value for scaling down the frequency using the PRESC bitfield in the REG_TIMx_CFG CSR (where x = 0 to 3 for Timer0 to Timer3).
+- Configure sawtooth mode through which the updown down counter operates using the SAWTOOTH bitfield in the REG_TIMx_CFG CSR (where x = 0 to 3 for Timer0 to Timer3).
+- Configure updown counter start value and end value using COUNT_START and COUNT_END bitfield respectively in the REG_TIMx_TH CSR (where x = 0 to 3 for Timer0 to Timer3).
+- Configure comparator 0 operation and comparator 0 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIMx_CH0_TH CSR (where x = 0 to 3 for Timer0 to Timer3).
+- Configure comparator 1 operation and comparator 1 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIMx_CH1_TH CSR (where x = 0 to 3 for Timer0 to Timer3).
+- Configure comparator 2 operation and comparator 2 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIMx_CH2_TH CSR (where x = 0 to 3 for Timer0 to Timer3).
+- Configure comparator 3 operation and comparator 3 threshold using COMP_OP and COMP_THRESHOLD bitfield respectively in the REG_TIMx_CH3_TH CSR (where x = 0 to 3 for Timer0 to Timer3).
 
 Common configurations:
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -459,18 +471,18 @@ Control configurations/operations:
 
 There are CSR bitfields in the APB advanced timer that control operations of each of the timer modules and their submodules. 
 
-- Set the START bitfield in the REG_TIM[0-3]_CMD to start the Timer and its sub modules input stage, prescaler, updown counter, and comparators.
-- Set the STOP bitfield in the REG_TIM[0-3]_CMD to stop/halt/pause the Timer and its sub modules input stage, prescaler, updown counter, and comparators.
-- Set the UPDATE bitfield in the REG_TIM[0-3]_CMD to Re-Initialization with the latest CSRs of the Timer and its sub modules, input stage, prescaler, updown counter, and comparators.
-- Set the RESET bitfield in the REG_TIM[0-3]_CMD to reset the Timer and its submodules input stage, prescaler, updown counter, and comparators.
-- set the ARM bitfield in the REG_TIM[0-3]_CMD to modify the inputs in the input stage.
+- Set the START bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) to start the Timer and its sub modules input stage, prescaler, updown counter, and comparators.
+- Set the STOP bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) to stop/halt/pause the Timer and its sub modules input stage, prescaler, updown counter, and comparators.
+- Set the UPDATE bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) to Re-Initialization with the latest CSRs of the Timer and its sub modules, input stage, prescaler, updown counter, and comparators.
+- Set the RESET bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) to reset the Timer and its submodules input stage, prescaler, updown counter, and comparators.
+- set the ARM bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) to modify the inputs in the input stage.
 
 Status configurations:
 ~~~~~~~~~~~~~~~~~~~~~~
 
 The counter values of all 4 Timers can be read via the following CSR bitfields in the APB advanced timer. 
 
-- Use the T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER to read the values of the counter maintained by updowncounter for each of the timers.
+- Use the Tx_COUNTER bitfields in the respective REG_TIMx_COUNTER CSR (where x = 0 to 3 for Timer0 to Timer3) to read the values of the counter maintained by updowncounter for each of the timers.
 
 
 
@@ -491,13 +503,14 @@ REG_TIM0_CMD
 +==========+======+=================+========+=========================================================================================+
 | RESERVED | 31:5 | 0               | --     | Reserved                                                                                |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
-| ARM      | 4:4  | 0               | RW     | set this bitfield to modfify the input data if MODE bitfield value is 6 or 7            |
+| ARM      | 4:4  | 0               | RW     | set this bitfield to modfify the input data as per description in input stage           |
+|          |      |                 |        | when MODE bitfield value is 6 or 7                                                      |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | RESET    | 3:3  | 0               | RW     | set this bitfield to reset the timer, even when the timer is active for PWM generation. |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | UPDATE   | 2:2  | 0               | RW     | set this bitfield to update or re-initialize the timer when the timer is stopped        |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
-| STOP     | 1:1  | 0               | RW     | set this bitfield to stop/pause/halt the timer and its sub modules operations           |
+| STOP     | 1:1  | 0               | RW     | set this bitfield to stop the timer and its sub modules operations                      |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | START    | 0:0  | 0               | RW     | set this bitfield to Start the timer operation to generate PWM output                   |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
@@ -513,7 +526,7 @@ REG_TIM0_CFG
 +==========+=======+=================+========+============================================================================+
 | RESERVED | 31:24 | 0               | --     | Reserved                                                                   |                                
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
-| PRESC    | 23:16 | 0               | RW     | prescaler value configuration bitfield                                     |
+| PRESC    | 23:16 | 0               | RW     | prescaler compare value configuration bitfield                             |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | RESERVED | 15:13 | 0               | --     | Reserved                                                                   |                                 
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
@@ -525,39 +538,64 @@ REG_TIM0_CFG
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | CLKSEL   | 11:11 | 0               | RW     | clock source configuration bitfield                                        |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 1’b0: FLL                                                                  |
+|          |       |                 |        | 1’b0: HCLK                                                                 |
 |          |       |                 |        |                                                                            |
 |          |       |                 |        | 1’b1: Reference clock at 32kHz                                             |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
-| MODE     | 10:8  | 0               | RW     | trigger mode configuration bitfield                                        |
+| MODE     | 10:8  | 0               | RW     | Input stage triggers an output event as per the mode configuration bitfield|
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h0: Trigger event at each clock cycle                                    |
+|          |       |                 |        | 3’h0: Trigger output event at each clock cycle                             |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h1: Trigger event if input source is 0                                   |
+|          |       |                 |        | 3’h1: Trigger output event if input source is 0                            |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h2: Trigger event if input source is 1                                   |
+|          |       |                 |        | 3’h2: Trigger output event if input source is 1                            |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h3: Trigger event on input source rising edge                            |
+|          |       |                 |        | 3’h3: Trigger output event on input source rising edge                     |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h4: Trigger event on input source falling edge                           |
+|          |       |                 |        | 3’h4: Trigger output event on input source falling edge                    |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h5: Trigger event on input source falling or rising edge                 |
+|          |       |                 |        | 3’h5: Trigger output event on input source falling or rising edge          |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h6: Trigger event on input source rising edge when armed                 |
+|          |       |                 |        | 3’h6: Trigger eoutput vent on input source rising edge when armed          |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h7: Trigger event on input source falling edge when armed                |
+|          |       |                 |        | 3’h7: Trigger output  event on input source falling edge when armed        |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | INSEL    | 7:0   | 0               | RW     | input source configuration bitfield                                        |
 |          |       |                 |        |                                                                            |
 |          |       |                 |        | 0-31: GPIO[0] to GPIO[31]                                                  |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 32-35: Channel 0 to 3 of ADV_TIMER0                                        |
+|          |       |                 |        | 32 - ch_0_o[0] is selected                                                 |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 36-39: Channel 0 to 3 of ADV_TIMER1                                        |
+|          |       |                 |        | 33 - ch_0_o[1] is selected                                                 |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 40-43: Channel 0 to 3 of ADV_TIMER2                                        |
+|          |       |                 |        | 34 - ch_0_o[2] is selected                                                 |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 44-47: Channel 0 to 3 of ADV_TIMER3                                        |
+|          |       |                 |        | 35 - ch_0_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 36 - ch_1_o[0] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 37 - ch_1_o[1] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 38 - ch_1_o[2] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 39 - ch_1_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 40 - ch_2_o[0] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 41 - ch_2_o[1] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 42 - ch_2_o[2] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 43 - ch_2_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 44 - ch_3_o[0] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 45 - ch_3_o[1] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 46 - ch_3_o[2] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 47 - ch_3_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 
 
@@ -585,23 +623,12 @@ REG_TIM0_CH0_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_0_o[0]. Detailed description is provided in comparator section.               |
++----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer0 Channel 0 comparator threshold value (Timer0 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_0_o[0])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -615,23 +642,11 @@ REG_TIM0_CH1_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_0_o[1]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer0 Channel 1 comparator threshold value (Timer0 updown counter value is      | 
+|                |       |                 |        |compared with the COMP_THRESHOLD value to generate the ch_0_o[1])                 |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -645,23 +660,11 @@ REG_TIM0_CH2_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_0_o[2]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer0 Channel 2 comparator threshold value (Timer0 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_0_o[2])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -675,23 +678,11 @@ REG_TIM0_CH3_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_0_o[3]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer0 Channel 3 comparator threshold value (Timer0 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_0_o[3])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -780,13 +771,14 @@ REG_TIM1_CMD
 +==========+======+=================+========+=========================================================================================+
 | RESERVED | 31:5 | 0               | --     | Reserved                                                                                |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
-| ARM      | 4:4  | 0               | RW     | set this bitfield to modfify the input data if MODE bitfield value is 6 or 7            |
+| ARM      | 4:4  | 0               | RW     | set this bitfield to modfify the input data as per description in input stage           |
+|          |      |                 |        | when MODE bitfield value is 6 or 7                                                      |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | RESET    | 3:3  | 0               | RW     | set this bitfield to reset the timer, even when the timer is active for PWM generation. |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | UPDATE   | 2:2  | 0               | RW     | set this bitfield to update or re-initialize the timer when the timer is stopped        |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
-| STOP     | 1:1  | 0               | RW     | set this bitfield to stop/pause/halt the timer and its sub modules operations           |
+| STOP     | 1:1  | 0               | RW     | set this bitfield to stop the timer and its sub modules operations                      |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | START    | 0:0  | 0               | RW     | set this bitfield to Start the timer operation to generate PWM output                   |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
@@ -814,39 +806,64 @@ REG_TIM1_CFG
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | CLKSEL   | 11:11 | 0               | RW     | clock source configuration bitfield                                        |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 1’b0: FLL                                                                  |
+|          |       |                 |        | 1’b0: HCLK                                                                 |
 |          |       |                 |        |                                                                            |
 |          |       |                 |        | 1’b1: Reference clock at 32kHz                                             |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
-| MODE     | 10:8  | 0               | RW     | trigger mode configuration bitfield                                        |
+| MODE     | 10:8  | 0               | RW     | Input stage triggers an output event as per the mode configuration bitfield|
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h0: Trigger event at each clock cycle                                    |
+|          |       |                 |        | 3’h0: Trigger output event at each clock cycle                             |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h1: Trigger event if input source is 0                                   |
+|          |       |                 |        | 3’h1: Trigger output event if input source is 0                            |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h2: Trigger event if input source is 1                                   |
+|          |       |                 |        | 3’h2: Trigger output event if input source is 1                            |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h3: Trigger event on input source rising edge                            |
+|          |       |                 |        | 3’h3: Trigger output event on input source rising edge                     |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h4: Trigger event on input source falling edge                           |
+|          |       |                 |        | 3’h4: Trigger output event on input source falling edge                    |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h5: Trigger event on input source falling or rising edge                 |
+|          |       |                 |        | 3’h5: Trigger output event on input source falling or rising edge          |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h6: Trigger event on input source rising edge when armed                 |
+|          |       |                 |        | 3’h6: Trigger eoutput vent on input source rising edge when armed          |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h7: Trigger event on input source falling edge when armed                |
+|          |       |                 |        | 3’h7: Trigger output  event on input source falling edge when armed        |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | INSEL    | 7:0   | 0               | RW     | input source configuration bitfield                                        |
 |          |       |                 |        |                                                                            |
 |          |       |                 |        | 0-31: GPIO[0] to GPIO[31]                                                  |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 32-35: Channel 0 to 3 of ADV_TIMER0                                        |
+|          |       |                 |        | 32 - ch_0_o[0] is selected                                                 |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 36-39: Channel 0 to 3 of ADV_TIMER1                                        |
+|          |       |                 |        | 33 - ch_0_o[1] is selected                                                 |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 40-43: Channel 0 to 3 of ADV_TIMER2                                        |
+|          |       |                 |        | 34 - ch_0_o[2] is selected                                                 |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 44-47: Channel 0 to 3 of ADV_TIMER3                                        |
+|          |       |                 |        | 35 - ch_0_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 36 - ch_1_o[0] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 37 - ch_1_o[1] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 38 - ch_1_o[2] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 39 - ch_1_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 40 - ch_2_o[0] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 41 - ch_2_o[1] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 42 - ch_2_o[2] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 43 - ch_2_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 44 - ch_3_o[0] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 45 - ch_3_o[1] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 46 - ch_3_o[2] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 47 - ch_3_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 
 REG_TIM1_TH
@@ -873,23 +890,11 @@ REG_TIM1_CH0_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_1_o[0]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer1 Channel 0 comparator threshold value (Timer1 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_1_o[0])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -903,23 +908,11 @@ REG_TIM1_CH1_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_1_o[1]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer1 Channel 1 comparator threshold value (Timer1 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_1_o[1])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -933,23 +926,11 @@ REG_TIM1_CH2_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_1_o[2]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer1 Channel 2 comparator threshold value (Timer1 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_1_o[2])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -963,23 +944,11 @@ REG_TIM1_CH3_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_1_o[3]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer1 Channel 3 comparator threshold value (Timer1 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_1_o[3])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -1069,13 +1038,14 @@ REG_TIM2_CMD
 +==========+======+=================+========+=========================================================================================+
 | RESERVED | 31:5 | 0               | --     | Reserved                                                                                |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
-| ARM      | 4:4  | 0               | RW     | set this bitfield to modfify the input data if MODE bitfield value is 6 or 7            |
+| ARM      | 4:4  | 0               | RW     | set this bitfield to modfify the input data as per description in input stage           |
+|          |      |                 |        | when MODE bitfield value is 6 or 7                                                      |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | RESET    | 3:3  | 0               | RW     | set this bitfield to reset the timer, even when the timer is active for PWM generation. |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | UPDATE   | 2:2  | 0               | RW     | set this bitfield to update or re-initialize the timer when the timer is stopped        |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
-| STOP     | 1:1  | 0               | RW     | set this bitfield to stop/pause/halt the timer and its sub modules operations           |
+| STOP     | 1:1  | 0               | RW     | set this bitfield to stop the timer and its sub modules operations                      |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | START    | 0:0  | 0               | RW     | set this bitfield to Start the timer operation to generate PWM output                   |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
@@ -1103,39 +1073,64 @@ REG_TIM2_CFG
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | CLKSEL   | 11:11 | 0               | RW     | clock source configuration bitfield                                        |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 1’b0: FLL                                                                  |
+|          |       |                 |        | 1’b0: HCLK                                                                 |
 |          |       |                 |        |                                                                            |
 |          |       |                 |        | 1’b1: Reference clock at 32kHz                                             |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
-| MODE     | 10:8  | 0               | RW     | trigger mode configuration bitfield                                        |
+| MODE     | 10:8  | 0               | RW     | Input stage triggers an output event as per the mode configuration bitfield|
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h0: Trigger event at each clock cycle                                    |
+|          |       |                 |        | 3’h0: Trigger output event at each clock cycle                             |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h1: Trigger event if input source is 0                                   |
+|          |       |                 |        | 3’h1: Trigger output event if input source is 0                            |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h2: Trigger event if input source is 1                                   |
+|          |       |                 |        | 3’h2: Trigger output event if input source is 1                            |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h3: Trigger event on input source rising edge                            |
+|          |       |                 |        | 3’h3: Trigger output event on input source rising edge                     |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h4: Trigger event on input source falling edge                           |
+|          |       |                 |        | 3’h4: Trigger output event on input source falling edge                    |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h5: Trigger event on input source falling or rising edge                 |
+|          |       |                 |        | 3’h5: Trigger output event on input source falling or rising edge          |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h6: Trigger event on input source rising edge when armed                 |
+|          |       |                 |        | 3’h6: Trigger eoutput vent on input source rising edge when armed          |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h7: Trigger event on input source falling edge when armed                |
+|          |       |                 |        | 3’h7: Trigger output  event on input source falling edge when armed        |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | INSEL    | 7:0   | 0               | RW     | input source configuration bitfield                                        |
 |          |       |                 |        |                                                                            |
 |          |       |                 |        | 0-31: GPIO[0] to GPIO[31]                                                  |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 32-35: Channel 0 to 3 of ADV_TIMER0                                        |
+|          |       |                 |        | 32 - ch_0_o[0] is selected                                                 |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 36-39: Channel 0 to 3 of ADV_TIMER1                                        |
+|          |       |                 |        | 33 - ch_0_o[1] is selected                                                 |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 40-43: Channel 0 to 3 of ADV_TIMER2                                        |
+|          |       |                 |        | 34 - ch_0_o[2] is selected                                                 |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 44-47: Channel 0 to 3 of ADV_TIMER3                                        |
+|          |       |                 |        | 35 - ch_0_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 36 - ch_1_o[0] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 37 - ch_1_o[1] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 38 - ch_1_o[2] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 39 - ch_1_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 40 - ch_2_o[0] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 41 - ch_2_o[1] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 42 - ch_2_o[2] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 43 - ch_2_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 44 - ch_3_o[0] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 45 - ch_3_o[1] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 46 - ch_3_o[2] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 47 - ch_3_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 
 
@@ -1164,23 +1159,11 @@ REG_TIM2_CH0_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_2_o[0]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer2 Channel 0 comparator threshold value (Timer2 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_2_o[0])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -1194,23 +1177,11 @@ REG_TIM2_CH1_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_2_o[1]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer2 Channel 1 comparator threshold value (Timer2 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_2_o[1])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -1224,25 +1195,12 @@ REG_TIM2_CH2_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_2_o[2]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer2 Channel 2 comparator threshold value (Timer2 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_2_o[2])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-
 
 
 REG_TIM2_CH3_TH
@@ -1255,23 +1213,11 @@ REG_TIM2_CH3_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_2_o[3]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer2 Channel 3 comparator threshold value (Timer2 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_2_o[3])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -1361,13 +1307,14 @@ REG_TIM3_CMD
 +==========+======+=================+========+=========================================================================================+
 | RESERVED | 31:5 | 0               | --     | Reserved                                                                                |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
-| ARM      | 4:4  | 0               | RW     | set this bitfield to modfify the input data if MODE bitfield value is 6 or 7            |
+| ARM      | 4:4  | 0               | RW     | set this bitfield to modfify the input data as per description in input stage           |
+|          |      |                 |        | when MODE bitfield value is 6 or 7                                                      |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | RESET    | 3:3  | 0               | RW     | set this bitfield to reset the timer, even when the timer is active for PWM generation. |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | UPDATE   | 2:2  | 0               | RW     | set this bitfield to update or re-initialize the timer when the timer is stopped        |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
-| STOP     | 1:1  | 0               | RW     | set this bitfield to stop/pause/halt the timer and its sub modules operations           |
+| STOP     | 1:1  | 0               | RW     | set this bitfield to stop the timer and its sub modules operations                      |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
 | START    | 0:0  | 0               | RW     | set this bitfield to Start the timer operation to generate PWM output                   |
 +----------+------+-----------------+--------+-----------------------------------------------------------------------------------------+
@@ -1395,39 +1342,64 @@ REG_TIM3_CFG
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | CLKSEL   | 11:11 | 0               | RW     | clock source configuration bitfield                                        |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 1’b0: FLL                                                                  |
+|          |       |                 |        | 1’b0: HCLK                                                                 |
 |          |       |                 |        |                                                                            |
 |          |       |                 |        | 1’b1: Reference clock at 32kHz                                             |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
-| MODE     | 10:8  | 0               | RW     | trigger mode configuration bitfield                                        |
+| MODE     | 10:8  | 0               | RW     | Input stage triggers an output event as per the mode configuration bitfield|
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h0: Trigger event at each clock cycle                                    |
+|          |       |                 |        | 3’h0: Trigger output event at each clock cycle                             |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h1: Trigger event if input source is 0                                   |
+|          |       |                 |        | 3’h1: Trigger output event if input source is 0                            |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h2: Trigger event if input source is 1                                   |
+|          |       |                 |        | 3’h2: Trigger output event if input source is 1                            |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h3: Trigger event on input source rising edge                            |
+|          |       |                 |        | 3’h3: Trigger output event on input source rising edge                     |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h4: Trigger event on input source falling edge                           |
+|          |       |                 |        | 3’h4: Trigger output event on input source falling edge                    |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h5: Trigger event on input source falling or rising edge                 |
+|          |       |                 |        | 3’h5: Trigger output event on input source falling or rising edge          |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h6: Trigger event on input source rising edge when armed                 |
+|          |       |                 |        | 3’h6: Trigger eoutput vent on input source rising edge when armed          |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 3’h7: Trigger event on input source falling edge when armed                |
+|          |       |                 |        | 3’h7: Trigger output  event on input source falling edge when armed        |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 | INSEL    | 7:0   | 0               | RW     | input source configuration bitfield                                        |
 |          |       |                 |        |                                                                            |
 |          |       |                 |        | 0-31: GPIO[0] to GPIO[31]                                                  |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 32-35: Channel 0 to 3 of ADV_TIMER0                                        |
+|          |       |                 |        | 32 - ch_0_o[0] is selected                                                 |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 36-39: Channel 0 to 3 of ADV_TIMER1                                        |
+|          |       |                 |        | 33 - ch_0_o[1] is selected                                                 |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 40-43: Channel 0 to 3 of ADV_TIMER2                                        |
+|          |       |                 |        | 34 - ch_0_o[2] is selected                                                 |
 |          |       |                 |        |                                                                            |
-|          |       |                 |        | 44-47: Channel 0 to 3 of ADV_TIMER3                                        |
+|          |       |                 |        | 35 - ch_0_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 36 - ch_1_o[0] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 37 - ch_1_o[1] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 38 - ch_1_o[2] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 39 - ch_1_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 40 - ch_2_o[0] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 41 - ch_2_o[1] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 42 - ch_2_o[2] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 43 - ch_2_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 44 - ch_3_o[0] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 45 - ch_3_o[1] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 46 - ch_3_o[2] is selected                                                 |
+|          |       |                 |        |                                                                            |
+|          |       |                 |        | 47 - ch_3_o[3] is selected                                                 |
+|          |       |                 |        |                                                                            |
 +----------+-------+-----------------+--------+----------------------------------------------------------------------------+
 
 
@@ -1455,23 +1427,11 @@ REG_TIM3_CH0_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_3_o[0]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer3 Channel 0 comparator threshold value (Timer3 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_3_o[0])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -1485,23 +1445,11 @@ REG_TIM3_CH1_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_3_o[1]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer3 Channel 1 comparator threshold value (Timer3 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_3_o[1])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -1515,23 +1463,11 @@ REG_TIM3_CH2_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_3_o[2]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer3 Channel 2 comparator threshold value (Timer3 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_3_o[2])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -1545,23 +1481,11 @@ REG_TIM3_CH3_TH
 +================+=======+=================+========+==================================================================================+
 | RESERVED       | 31:19 | 0               | --     | Reserved                                                                         | 
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_OP        | 18:16 | 0               | RW     | Channel 0 threshold match action on channel output signal configuration bitfield |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h0: Set                                                                        |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h1: Toggle then next threshold match action is clear                           |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h2: Set then next threshold match action is clear                              |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h3: Toggle                                                                     |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h4: Clear                                                                      |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h5: Toggle then next threshold match action is set                             |
-|                |       |                 |        |                                                                                  |
-|                |       |                 |        | 3’h6: Clear then next threshold match action is set                              |
+| COMP_OP        | 18:16 | 0               | RW     | It decides the comparator operation to be performed to drive the output PWM      |
+|                |       |                 |        | ch_3_o[3]. Detailed description is provided in comparator section.               |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
-| COMP_THRESHOLD | 15:0  | 0               | RW     | Channel 0 threshold configuration bitfield                                       |
+| COMP_THRESHOLD | 15:0  | 0               | RW     | Timer3 Channel 3 comparator threshold value (Timer3 updown counter value is      | 
+|                |       |                 |        | compared with the COMP_THRESHOLD value to generate the ch_3_o[3])                |
 +----------------+-------+-----------------+--------+----------------------------------------------------------------------------------+
 
 
@@ -1652,14 +1576,174 @@ REG_EVENT_CFG
 | RESERVED           | 31:20 | 0               | --     | Reserved                                                                                  |
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
 | OUT_SEL_EVT_ENABLE | 19:16 | 0               | RW     | Output event select ENABLE. Each bit represents an event enable for 4 bit events_o output.|
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0000 - all the events are disabled                                                     |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0001 - events_o[0] is enabled                                                          |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0010 - events_o[1] is enabled                                                          |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0011 - events_o[0] and events_o[1] are enabled                                         |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0100 - events_o[2] is enabled                                                          |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0101 - events_o[0] and events_o[2] are enabled                                         |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0110 - events_o[1] and events_o[2] are enabled                                         |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0111 - events_o[0], events_o[1] and events_o[2] are enabled                            |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1000 - events_o[3] is enabled                                                          |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1001 - events_o[0] and events_o[3] are enabled                                         |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1010 - events_o[1] and events_o[3] are enabled                                         |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1011 - events_o[0], events_o[1] and events_o[3] are enabled                            |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1100 - events_o[2] and events_o[3] are enabled                                         |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1101 - events_o[0], events_o[2] and events_o[3] are enabled                            |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1110 - events_o[1], events_o[2] and events_o[3] are enabled                            |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1111 - all the events are enabled                                                      |
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
-| OUT_SEL_EVT3       | 15:12 | 0               | RW     | Output event select 3 from a group of 16 PWM outputs                                      |
+| OUT_SEL_EVT3       | 15:12 | 0               | RW     | OUT_SEL_EVT3 select a signal that drives events_o[3] from a group of 16 PWM outputs       |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0000 - ch_0_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0001 - ch_0_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0010 - ch_0_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0011 - ch_0_o[3] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0100 - ch_1_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0101 - ch_1_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0110 - ch_1_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0111 - ch_1_o[3] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1000 - ch_2_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1001 - ch_2_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1010 - ch_2_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1011 - ch_2_o[3] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1100 - ch_3_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1101 - ch_3_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1110 - ch_3_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1111 - ch_3_o[3] is selected                                                           |
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
-| OUT_SEL_EVT2       | 11:8  | 0               | RW     | Output event select 2 from a group of 16 PWM outputs                                      |
+| OUT_SEL_EVT2       | 11:8  | 0               | RW     | OUT_SEL_EVT2 select a signal that drives events_o[2] from a group of 16 PWM outputs       |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0000 - ch_0_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0001 - ch_0_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0010 - ch_0_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0011 - ch_0_o[3] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0100 - ch_1_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0101 - ch_1_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0110 - ch_1_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0111 - ch_1_o[3] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1000 - ch_2_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1001 - ch_2_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1010 - ch_2_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1011 - ch_2_o[3] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1100 - ch_3_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1101 - ch_3_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1110 - ch_3_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1111 - ch_3_o[3] is selected                                                           |
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
-| OUT_SEL_EVT1       | 7:4   | 0               | RW     | Output event select 1 from a group of 16 PWM outputs                                      |
+| OUT_SEL_EVT1       | 7:4   | 0               | RW     | OUT_SEL_EVT1 select a signal that drives events_o[1] from a group of 16 PWM outputs       |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0000 - ch_0_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0001 - ch_0_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0010 - ch_0_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0011 - ch_0_o[3] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0100 - ch_1_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0101 - ch_1_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0110 - ch_1_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0111 - ch_1_o[3] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1000 - ch_2_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1001 - ch_2_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1010 - ch_2_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1011 - ch_2_o[3] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1100 - ch_3_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1101 - ch_3_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1110 - ch_3_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1111 - ch_3_o[3] is selected                                                           |
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
-| OUT_SEL_EVT0       | 3:0   | 0               | RW     | Output event select 0 from a group of 16 PWM outputs                                      |
+| OUT_SEL_EVT0       | 3:0   | 0               | RW     | OUT_SEL_EVT0 select a signal that drives events_o[0] from a group of 16 PWM outputs       |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0000 - ch_0_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0001 - ch_0_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0010 - ch_0_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0011 - ch_0_o[3] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0100 - ch_1_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0101 - ch_1_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0110 - ch_1_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’0111 - ch_1_o[3] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1000 - ch_2_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1001 - ch_2_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1010 - ch_2_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1011 - ch_2_o[3] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1100 - ch_3_o[0] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1101 - ch_3_o[1] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1110 - ch_3_o[2] is selected                                                           |
+|                    |       |                 |        |                                                                                           |
+|                    |       |                 |        | 0b’1111 - ch_3_o[3] is selected                                                           |
 +--------------------+-------+-----------------+--------+-------------------------------------------------------------------------------------------+
 
 
@@ -1673,6 +1757,22 @@ REG_CH_EN
 | RESERVED   | 31:4  | 0               | --     | Reserved                                                                                          |
 +------------+-------+-----------------+--------+---------------------------------------------------------------------------------------------------+
 | CLK_ENABLE | 3:0   | 0               | RW     | Each bit acts as clock enable for each timer. For eg: if 2nd bit is set Timer 2 clock is enabled. |
+|            |       |                 |        | 0b’0000 - Clock is disabled for all the Timers                                                    |
+|            |       |                 |        | 0b’0001 - Clock is enabled for Timer0                                                             |
+|            |       |                 |        | 0b’0010 - Clock is enabled for Timer1                                                             |
+|            |       |                 |        | 0b’0011 - Clock is enabled for Timer0 and Timer1                                                  |
+|            |       |                 |        | 0b’0100 - Clock is enabled for Timer2                                                             |
+|            |       |                 |        | 0b’0101 - Clock is enabled for Timer0 and Timer2                                                  |
+|            |       |                 |        | 0b’0110 - Clock is enabled for Timer1 and Timer2                                                  |
+|            |       |                 |        | 0b’0111 - Clock is enabled for Timer0, Timer1 and Timer2                                          |
+|            |       |                 |        | 0b’1000 - Clock is enabled for Timer3                                                             |
+|            |       |                 |        | 0b’1001 - Clock is enabled for Timer0 and Timer3                                                  |
+|            |       |                 |        | 0b’1010 - Clock is enabled for Timer1 and Timer3                                                  |
+|            |       |                 |        | 0b’1011 - Clock is enabled for Timer0, Timer1 and Timer3                                          |
+|            |       |                 |        | 0b’1100 - Clock is enabled for Timer2 and Timer3                                                  |
+|            |       |                 |        | 0b’1101 - Clock is enabled for Timer0, Timer2 and Timer3                                          |
+|            |       |                 |        | 0b’1110 - Clock is enabled for Timer1, Timer2 and Timer3                                          |
+|            |       |                 |        | 0b’1111 - Clock is enabled for all the Timers                                                     |
 +------------+-------+-----------------+--------+---------------------------------------------------------------------------------------------------+
 
 Firmware Guidelines
@@ -1683,17 +1783,17 @@ Initialization:
 - When the HRESETn signal is low, CSRs default to 0, and outputs are low.
 - Four timer modules have four clock gates, which will be enabled(meaning they pass the ref clock to the respective timer module). only when either dft_cg_enable_i is high or the bit in respective position of REG_CH_EN CSR is high(0th bit for timer_0,1st bit for timer_1,etc).
 - At every positive edge of the clock, the CSR CSRs are updated based on APB signals.
-- FW can update the below bitfields to any custom value before the START bitfield in the REG_TIM[0-3]_CMD CSR is set to '1' and the timer is not active yet (which means the timer is started for the first time). Otherwise, all the config values of all sub-modules are commanded to be updated to the default.
+- FW can update the below bitfields to any custom value before the START bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) CSR is set to '1' and the timer is not active yet (which means the timer is started for the first time). Otherwise, all the config values of all sub-modules are commanded to be updated to the default.
 
   - The CLK_ENABLE bitfields of REG_CH_EN.
 
-  - The PRESC, SAWTOOTH, CLKSEL, MODE, and INSEL bitfields of REG_TIM[0-3]_CFG.
+  - The PRESC, SAWTOOTH, CLKSEL, MODE, and INSEL bitfields of REG_TIMx_CFG CSR (where x = 0 to 3 for Timer0 to Timer3).
 
-  - The COUNT_START and COUNT_END bitfields of REG_TIM[0-3]_TH.
+  - The COUNT_START and COUNT_END bitfields of REG_TIMx_TH CSR (where x = 0 to 3 for Timer0 to Timer3).
 
   - The direction of the updown counter(default is 0)
 
-  - COMP_THRESHOLD and COMP_OP bitfields of REG_TIM[0-3]_CH0_TH, REG_TIM[0-3]_CH1_TH, REG_TIM[0-3]_CH2_TH and REG_TIM[0-3]_CH3_TH
+  - COMP_THRESHOLD and COMP_OP bitfields of REG_TIMx_CH0_TH CSR (where x = 0 to 3 for Timer0 to Timer3), REG_TIMx_CH1_TH CSR (where x = 0 to 3 for Timer0 to Timer3), REG_TIMx_CH2_TH CSR (where x = 0 to 3 for Timer0 to Timer3) and REG_TIMx_CH3_TH CSR (where x = 0 to 3 for Timer0 to Timer3)
 
   - The OUT_SEL_EVT_ENABLE, OUT_SEL_EVT3, OUT_SEL_EVT2, OUT_SEL_EVT1 and OUT_SEL_EVT0 bitfields of REG_EVENT_CFG 
 
@@ -1705,11 +1805,11 @@ PWM generation or Start the Timer:
 FW can start the timer or PWM generation via the steps below.
 
 - When the External input/stimulus ext_sig_i is provided by the APB_GPIO.
-- START bitfield in the REG_TIM[0-3]_CMD is set to '1'and STOP bitfield in the REG_TIM[0-3]_CMD is set to '0', then all the timer and its sub modules are made active.
+- START bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) is set to '1'and STOP bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) is set to '0', then all the timer and its sub modules are made active.
 
 This input signal is processed by the APB ADVANCED TIMER according to the CSR configurations.
-Use the T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER to read the values of the counter for each timer.
-According to the CSR configurations, APB ADVANCED TIMER has 4 Timer modules, and a maximum of four independent 4-bit PWM outputs are generated, which are parsed to the I/O MUX.
+Use the Tx_COUNTER bitfields in the respective REG_TIMx_COUNTER CSR (where x = 0 to 3 for Timer0 to Timer3) to read the values of the counter for each timer.
+According to the CSR configurations, APB ADVANCED TIMER has 4 Timer modules, and a maximum of four independent 4-bit PWM outputs are generated, which are passed to the I/O MUX.
 
 
 Stop the Timer:
@@ -1717,9 +1817,9 @@ Stop the Timer:
 
 FW can stop the PWM generation. It can be done by the following steps.
 
-- START bitfield in the REG_TIM[0-3]_CMD is set to '0' and STOP bitfield in the REG_TIM[0-3]_CMD is set to '1', then all the timer and its sub modules are made to inactive state.
+- START bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) is set to '0' and STOP bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) is set to '1', then all the timer and its sub modules are made to inactive state.
 
-The counter values will remain the same, and they will not be incremented after the Timer is stopped. When T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER remain the same after the STOP timer.
+The counter values will remain the same, and they will not be incremented after the Timer is stopped. When Tx_COUNTER bitfields in the respective REG_TIMx_COUNTER CSR (where x = 0 to 3 for Timer0 to Timer3) remain the same after the STOP timer.
 The PWM output will hold the previous value. 
 
 Update the Timer:
@@ -1727,19 +1827,19 @@ Update the Timer:
 
 FW can update certain configurations or reinitialize the CSRs to generate a different kind of PWM. It can be done by the following steps.
 
-- START bitfield in the REG_TIM[0-3]_CMD is set to '0' and STOP bitfield in the REG_TIM[0-3]_CMD is set to '1', then all the timer and its sub modules are made to inactive state. UPDATE bitfield in the REG_TIM[0-3]_CMD is set to '1'.
+- START bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) is set to '0' and STOP bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) is set to '1', then all the timer and its sub modules are made to inactive state. UPDATE bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) is set to '1'.
 
-Once the update to the Timer is finished, the PWM output will be holding the previous value, and T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER will be holding the COUNT_START value. 
-All the latest CSR configurations will be parsed to the model, and once the Timer is started, it will generate a PWM output based on these configurations.
+Once the update to the Timer is finished, the PWM output will be holding the previous value, and Tx_COUNTER bitfields in the respective REG_TIMx_COUNTER CSR (where x = 0 to 3 for Timer0 to Timer3) will be holding the COUNT_START value. 
+All the latest CSR configurations will be passed to the sub-modules, and once the Timer is started, it will generate a PWM output based on these configurations.
 
 Reset the Timer:
 ~~~~~~~~~~~~~~~~~
 
 FW can reset the Timer by the following steps.
 
-- RESET bitfield in the REG_TIM[0-3]_CMD is set to '1'.
+- RESET bitfield in the REG_TIMx_CMD CSR (where x = 0 to 3 for Timer0 to Timer3) is set to '1'.
 
-Once the reset is issued. The PWM output will be zero, and T[0-3]_COUNTER bitfields in the respective REG_TIM[0-3]_COUNTER will be holding the COUNT_START value. 
+Once the reset is issued. The PWM output will be zero, and Tx_COUNTER bitfields in the respective REG_TIMx_COUNTER CSR (where x = 0 to 3 for Timer0 to Timer3) will be holding the COUNT_START value. 
 
 Pin Diagram
 -----------
